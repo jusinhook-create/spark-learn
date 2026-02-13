@@ -3,7 +3,7 @@ import { useAuth } from "@/lib/auth";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { MessageSquare, Send, Plus, Image, Flame, Loader2, ArrowLeft } from "lucide-react";
+import { MessageSquare, Send, Plus, Image, Flame, Loader2, ArrowLeft, Search, Copy, UserPlus } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
@@ -28,8 +28,11 @@ export default function Forums() {
   const [activeForum, setActiveForum] = useState<any>(null);
   const [message, setMessage] = useState("");
   const [showCreate, setShowCreate] = useState(false);
+  const [showJoin, setShowJoin] = useState(false);
   const [newTitle, setNewTitle] = useState("");
   const [newDesc, setNewDesc] = useState("");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [inviteCode, setInviteCode] = useState("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -44,6 +47,11 @@ export default function Forums() {
     },
   });
 
+  const filteredForums = forums?.filter((f) =>
+    f.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    f.description?.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
   const { data: forumMessages, isLoading: msgsLoading } = useQuery({
     queryKey: ["forum-messages", activeForum?.id],
     queryFn: async () => {
@@ -53,7 +61,6 @@ export default function Forums() {
         .eq("forum_id", activeForum!.id)
         .order("created_at", { ascending: true });
 
-      // Get profiles for message authors
       if (data && data.length > 0) {
         const userIds = [...new Set(data.map((m) => m.user_id))];
         const { data: profiles } = await supabase
@@ -72,21 +79,14 @@ export default function Forums() {
     refetchInterval: 3000,
   });
 
-  // Realtime subscription
   useEffect(() => {
     if (!activeForum) return;
-
     const channel = supabase
       .channel(`forum-${activeForum.id}`)
-      .on(
-        "postgres_changes",
-        { event: "INSERT", schema: "public", table: "forum_messages", filter: `forum_id=eq.${activeForum.id}` },
-        () => {
-          queryClient.invalidateQueries({ queryKey: ["forum-messages", activeForum.id] });
-        }
-      )
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "forum_messages", filter: `forum_id=eq.${activeForum.id}` }, () => {
+        queryClient.invalidateQueries({ queryKey: ["forum-messages", activeForum.id] });
+      })
       .subscribe();
-
     return () => { supabase.removeChannel(channel); };
   }, [activeForum?.id]);
 
@@ -103,6 +103,8 @@ export default function Forums() {
         is_public: true,
       }).select().single();
       if (error) throw error;
+      // Auto-join as admin
+      await supabase.from("group_members").insert({ forum_id: data.id, user_id: user!.id, role: "admin" });
       return data;
     },
     onSuccess: () => {
@@ -114,16 +116,65 @@ export default function Forums() {
     },
   });
 
+  const joinByInvite = useMutation({
+    mutationFn: async () => {
+      const { data: forum, error } = await supabase
+        .from("forums")
+        .select("id, title")
+        .eq("invite_code", inviteCode.trim())
+        .single();
+      if (error || !forum) throw new Error("Invalid invite code");
+      
+      const { error: joinErr } = await supabase.from("group_members").insert({
+        forum_id: forum.id,
+        user_id: user!.id,
+      });
+      if (joinErr) {
+        if (joinErr.code === "23505") throw new Error("You're already in this group");
+        throw joinErr;
+      }
+      return forum;
+    },
+    onSuccess: (forum) => {
+      queryClient.invalidateQueries({ queryKey: ["forums"] });
+      setShowJoin(false);
+      setInviteCode("");
+      toast({ title: "Joined!", description: `You joined "${forum.title}"` });
+    },
+    onError: (e: any) => {
+      toast({ title: "Failed", description: e.message, variant: "destructive" });
+    },
+  });
+
+  const joinGroup = async (forumId: string) => {
+    const { error } = await supabase.from("group_members").insert({
+      forum_id: forumId,
+      user_id: user!.id,
+    });
+    if (error) {
+      if (error.code === "23505") {
+        toast({ title: "Already joined", description: "You're already in this group" });
+      } else {
+        toast({ title: "Error", description: error.message, variant: "destructive" });
+      }
+    } else {
+      toast({ title: "Joined!" });
+    }
+  };
+
+  const copyInviteCode = (code: string) => {
+    navigator.clipboard.writeText(code);
+    toast({ title: "Copied!", description: "Invite code copied to clipboard" });
+  };
+
   const sendMessage = async () => {
     if (!message.trim() || !activeForum || !user) return;
-
     const { error } = await supabase.from("forum_messages").insert({
       forum_id: activeForum.id,
       user_id: user.id,
       content: message.trim(),
       message_type: "text",
     });
-
     if (error) {
       toast({ title: "Error", description: error.message, variant: "destructive" });
     } else {
@@ -133,13 +184,10 @@ export default function Forums() {
 
   const sendImage = async (file: File) => {
     if (!activeForum || !user) return;
-
     const filePath = `${user.id}/${Date.now()}-${file.name}`;
     const { error: uploadErr } = await supabase.storage.from("forum-images").upload(filePath, file);
     if (uploadErr) { toast({ title: "Upload failed", variant: "destructive" }); return; }
-
     const { data: urlData } = supabase.storage.from("forum-images").getPublicUrl(filePath);
-
     await supabase.from("forum_messages").insert({
       forum_id: activeForum.id,
       user_id: user.id,
@@ -150,10 +198,8 @@ export default function Forums() {
 
   const shareStreak = async () => {
     if (!activeForum || !user) return;
-
     const { data: streak } = await supabase.from("streaks").select("*").eq("user_id", user.id).single();
     const { data: profile } = await supabase.from("profiles").select("display_name").eq("user_id", user.id).single();
-
     await supabase.from("forum_messages").insert({
       forum_id: activeForum.id,
       user_id: user.id,
@@ -170,24 +216,27 @@ export default function Forums() {
   if (activeForum) {
     return (
       <div className="flex flex-col h-[calc(100vh-8rem)] md:h-[calc(100vh-3rem)]">
-        {/* Header */}
         <div className="flex items-center gap-3 mb-3 pb-3 border-b">
           <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setActiveForum(null)}>
             <ArrowLeft className="h-4 w-4" />
           </Button>
-          <div>
+          <div className="flex-1">
             <p className="font-semibold text-sm">{activeForum.title}</p>
             <p className="text-xs text-muted-foreground">{activeForum.description}</p>
           </div>
+          {activeForum.invite_code && (
+            <Button variant="ghost" size="sm" className="gap-1 text-xs" onClick={() => copyInviteCode(activeForum.invite_code)}>
+              <Copy className="h-3 w-3" /> Invite
+            </Button>
+          )}
         </div>
 
-        {/* Messages */}
         <div className="flex-1 overflow-y-auto space-y-3 px-1">
           {forumMessages?.map((msg: ForumMessage) => {
             const isMe = msg.user_id === user?.id;
             return (
               <div key={msg.id} className={`flex ${isMe ? "justify-end" : "justify-start"}`}>
-                <div className={`max-w-[80%] ${isMe ? "" : ""}`}>
+                <div className="max-w-[80%]">
                   {!isMe && (
                     <p className="text-[10px] font-medium text-muted-foreground mb-0.5 px-1">
                       {msg.profile?.display_name || "User"}
@@ -221,15 +270,8 @@ export default function Forums() {
           <div ref={messagesEndRef} />
         </div>
 
-        {/* Input */}
         <div className="mt-3 flex gap-2 items-end">
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept="image/*"
-            className="hidden"
-            onChange={(e) => { const f = e.target.files?.[0]; if (f) sendImage(f); }}
-          />
+          <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) sendImage(f); }} />
           <Button variant="ghost" size="icon" className="h-10 w-10 shrink-0" onClick={() => fileInputRef.current?.click()}>
             <Image className="h-4 w-4" />
           </Button>
@@ -261,9 +303,25 @@ export default function Forums() {
           </h1>
           <p className="text-sm text-muted-foreground">Chat with fellow learners</p>
         </div>
-        <Button size="sm" className="gap-1" onClick={() => setShowCreate(true)}>
-          <Plus className="h-4 w-4" /> New Group
-        </Button>
+        <div className="flex gap-2">
+          <Button size="sm" variant="outline" className="gap-1" onClick={() => setShowJoin(true)}>
+            <UserPlus className="h-4 w-4" /> Join
+          </Button>
+          <Button size="sm" className="gap-1" onClick={() => setShowCreate(true)}>
+            <Plus className="h-4 w-4" /> New
+          </Button>
+        </div>
+      </div>
+
+      {/* Search */}
+      <div className="relative">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+        <Input
+          placeholder="Search groups..."
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          className="pl-9"
+        />
       </div>
 
       {forumsLoading ? (
@@ -274,13 +332,13 @@ export default function Forums() {
             </Card>
           ))}
         </div>
-      ) : forums && forums.length > 0 ? (
+      ) : filteredForums && filteredForums.length > 0 ? (
         <div className="space-y-2">
-          {forums.map((forum) => (
+          {filteredForums.map((forum) => (
             <Card
               key={forum.id}
               className="border-0 shadow-sm hover:shadow-md transition-shadow cursor-pointer"
-              onClick={() => setActiveForum(forum)}
+              onClick={() => { joinGroup(forum.id); setActiveForum(forum); }}
             >
               <CardContent className="p-4 flex items-center gap-3">
                 <div className="flex h-11 w-11 items-center justify-center rounded-full bg-primary/10 shrink-0">
@@ -298,23 +356,36 @@ export default function Forums() {
         <Card className="border-0 shadow-sm">
           <CardContent className="flex flex-col items-center justify-center py-12 text-center">
             <MessageSquare className="h-12 w-12 text-muted-foreground/30 mb-3" />
-            <p className="font-semibold">No groups yet</p>
-            <p className="text-sm text-muted-foreground">Create the first group to start chatting!</p>
+            <p className="font-semibold">{searchQuery ? "No groups found" : "No groups yet"}</p>
+            <p className="text-sm text-muted-foreground">{searchQuery ? "Try a different search" : "Create the first group to start chatting!"}</p>
           </CardContent>
         </Card>
       )}
 
+      {/* Create Dialog */}
       <Dialog open={showCreate} onOpenChange={setShowCreate}>
         <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Create Group Chat</DialogTitle>
-          </DialogHeader>
+          <DialogHeader><DialogTitle>Create Group Chat</DialogTitle></DialogHeader>
           <div className="space-y-3">
             <Input placeholder="Group name" value={newTitle} onChange={(e) => setNewTitle(e.target.value)} />
             <Input placeholder="Description (optional)" value={newDesc} onChange={(e) => setNewDesc(e.target.value)} />
             <Button className="w-full" onClick={() => createForum.mutate()} disabled={!newTitle.trim() || createForum.isPending}>
               {createForum.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
               Create Group
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Join by Invite Dialog */}
+      <Dialog open={showJoin} onOpenChange={setShowJoin}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>Join Group by Invite Code</DialogTitle></DialogHeader>
+          <div className="space-y-3">
+            <Input placeholder="Enter invite code..." value={inviteCode} onChange={(e) => setInviteCode(e.target.value)} />
+            <Button className="w-full" onClick={() => joinByInvite.mutate()} disabled={!inviteCode.trim() || joinByInvite.isPending}>
+              {joinByInvite.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+              Join Group
             </Button>
           </div>
         </DialogContent>

@@ -4,7 +4,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Upload, FileText, Trash2, Bot, Trophy, BookOpen, Loader2, ExternalLink } from "lucide-react";
+import { Upload, FileText, Trash2, Bot, Trophy, BookOpen, Loader2, ExternalLink, Image } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
@@ -33,13 +33,20 @@ export default function Materials() {
     enabled: !!user,
   });
 
+  const getFileType = (fileName: string): string => {
+    const ext = fileName.split(".").pop()?.toLowerCase() || "";
+    if (ext === "pdf") return "pdf";
+    if (["jpg", "jpeg", "png", "gif", "webp", "bmp"].includes(ext)) return "image";
+    if (["doc", "docx"].includes(ext)) return "docx";
+    return "text";
+  };
+
   const uploadFile = async (file: File) => {
     if (!user) return;
     setIsUploading(true);
 
     try {
-      const fileExt = file.name.split(".").pop()?.toLowerCase();
-      const fileType = fileExt === "pdf" ? "pdf" : "text";
+      const fileType = getFileType(file.name);
       const filePath = `${user.id}/${Date.now()}-${file.name}`;
 
       const { error: uploadErr } = await supabase.storage
@@ -48,14 +55,13 @@ export default function Materials() {
 
       if (uploadErr) throw uploadErr;
 
-      const { data: urlData } = supabase.storage
-        .from("study-uploads")
-        .getPublicUrl(filePath);
-
-      // Use signed URL since bucket is private
       const { data: signedUrlData } = await supabase.storage
         .from("study-uploads")
         .createSignedUrl(filePath, 3600);
+
+      const { data: urlData } = supabase.storage
+        .from("study-uploads")
+        .getPublicUrl(filePath);
 
       const fileUrl = signedUrlData?.signedUrl || urlData.publicUrl;
 
@@ -154,29 +160,26 @@ export default function Materials() {
     },
   });
 
+  const fileTypeLabel = (ft: string | null) => {
+    if (!ft) return "TEXT";
+    const labels: Record<string, string> = { pdf: "PDF", image: "IMAGE", docx: "WORD", text: "TEXT" };
+    return labels[ft] || ft.toUpperCase();
+  };
+
   return (
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">
           <Upload className="h-6 w-6 text-primary" /> Study Materials
         </h1>
-        <p className="text-sm text-muted-foreground">Upload PDFs or paste text to learn from</p>
+        <p className="text-sm text-muted-foreground">Upload PDFs, images, Word docs or paste text</p>
       </div>
 
-      {/* Upload Section */}
       <Card className="border-0 shadow-sm">
         <CardContent className="p-4 space-y-3">
           <div className="grid grid-cols-2 gap-3">
-            <Input
-              placeholder="Title (optional)"
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-            />
-            <Input
-              placeholder="Subject (optional)"
-              value={subject}
-              onChange={(e) => setSubject(e.target.value)}
-            />
+            <Input placeholder="Title (optional)" value={title} onChange={(e) => setTitle(e.target.value)} />
+            <Input placeholder="Subject (optional)" value={subject} onChange={(e) => setSubject(e.target.value)} />
           </div>
 
           <Textarea
@@ -190,7 +193,7 @@ export default function Materials() {
             <input
               ref={fileInputRef}
               type="file"
-              accept=".pdf,.txt,.md,.doc,.docx"
+              accept=".pdf,.txt,.md,.doc,.docx,.jpg,.jpeg,.png,.gif,.webp,.bmp"
               className="hidden"
               onChange={(e) => {
                 const file = e.target.files?.[0];
@@ -204,7 +207,7 @@ export default function Materials() {
               disabled={isUploading}
             >
               {isUploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileText className="h-4 w-4" />}
-              Upload PDF/File
+              Upload File
             </Button>
             <Button
               className="gap-2 flex-1"
@@ -215,10 +218,12 @@ export default function Materials() {
               Save Text
             </Button>
           </div>
+          <p className="text-[10px] text-muted-foreground text-center">
+            Supports: PDF, Word (.doc, .docx), Images (JPG, PNG, etc.), Text files
+          </p>
         </CardContent>
       </Card>
 
-      {/* Materials List */}
       <div>
         <h2 className="text-lg font-semibold mb-3">Your Materials</h2>
         {isLoading ? (
@@ -239,7 +244,7 @@ export default function Materials() {
                       <p className="font-semibold">{mat.title}</p>
                       <div className="flex items-center gap-2 mt-1">
                         <span className="text-xs bg-secondary text-secondary-foreground px-2 py-0.5 rounded-full">
-                          {mat.file_type?.toUpperCase()}
+                          {fileTypeLabel(mat.file_type)}
                         </span>
                         {mat.subject && (
                           <span className="text-xs bg-primary/10 text-primary px-2 py-0.5 rounded-full">
@@ -309,7 +314,7 @@ export default function Materials() {
             <CardContent className="flex flex-col items-center justify-center py-12 text-center">
               <Upload className="h-12 w-12 text-muted-foreground/30 mb-3" />
               <p className="font-semibold">No materials yet</p>
-              <p className="text-sm text-muted-foreground">Upload a PDF or paste text to get started!</p>
+              <p className="text-sm text-muted-foreground">Upload a file or paste text to get started!</p>
             </CardContent>
           </Card>
         )}

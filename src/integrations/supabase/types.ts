@@ -186,6 +186,7 @@ export type Database = {
           created_by: string
           description: string | null
           id: string
+          invite_code: string | null
           is_public: boolean
           subject: string | null
           title: string
@@ -195,6 +196,7 @@ export type Database = {
           created_by: string
           description?: string | null
           id?: string
+          invite_code?: string | null
           is_public?: boolean
           subject?: string | null
           title: string
@@ -204,11 +206,44 @@ export type Database = {
           created_by?: string
           description?: string | null
           id?: string
+          invite_code?: string | null
           is_public?: boolean
           subject?: string | null
           title?: string
         }
         Relationships: []
+      }
+      group_members: {
+        Row: {
+          forum_id: string
+          id: string
+          joined_at: string
+          role: string
+          user_id: string
+        }
+        Insert: {
+          forum_id: string
+          id?: string
+          joined_at?: string
+          role?: string
+          user_id: string
+        }
+        Update: {
+          forum_id?: string
+          id?: string
+          joined_at?: string
+          role?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "group_members_forum_id_fkey"
+            columns: ["forum_id"]
+            isOneToOne: false
+            referencedRelation: "forums"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       profiles: {
         Row: {
