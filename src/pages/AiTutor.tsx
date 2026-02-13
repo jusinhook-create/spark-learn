@@ -3,8 +3,12 @@ import { useAuth } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Card } from "@/components/ui/card";
-import { Send, Bot, User, Loader2 } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Send, Bot, User, Loader2, FileText } from "lucide-react";
 import ReactMarkdown from "react-markdown";
+import { supabase } from "@/integrations/supabase/client";
+import { useQuery } from "@tanstack/react-query";
+import { useSearchParams } from "react-router-dom";
 
 type Msg = { role: "user" | "assistant"; content: string };
 
@@ -12,10 +16,27 @@ const CHAT_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/ai-tutor`;
 
 export default function AiTutor() {
   const { user } = useAuth();
+  const [searchParams] = useSearchParams();
   const [messages, setMessages] = useState<Msg[]>([]);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [selectedMaterial, setSelectedMaterial] = useState<string>(searchParams.get("material") || "");
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  const { data: materials } = useQuery({
+    queryKey: ["study-materials", user?.id],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("study_materials")
+        .select("id, title, extracted_text, subject")
+        .eq("user_id", user!.id)
+        .order("created_at", { ascending: false });
+      return data;
+    },
+    enabled: !!user,
+  });
+
+  const activeMaterial = materials?.find((m) => m.id === selectedMaterial);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -38,7 +59,10 @@ export default function AiTutor() {
           "Content-Type": "application/json",
           Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
         },
-        body: JSON.stringify({ messages: allMessages }),
+        body: JSON.stringify({
+          messages: allMessages,
+          materialContext: activeMaterial?.extracted_text || null,
+        }),
       });
 
       if (!resp.ok || !resp.body) {
@@ -96,8 +120,35 @@ export default function AiTutor() {
         <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">
           <Bot className="h-6 w-6 text-primary" /> AI Tutor
         </h1>
-        <p className="text-sm text-muted-foreground">Ask me anything — I'm here to help you learn!</p>
+        <p className="text-sm text-muted-foreground">Ask me anything — I'll use your study materials!</p>
       </div>
+
+      {/* Material selector */}
+      {materials && materials.length > 0 && (
+        <div className="mb-3">
+          <Select value={selectedMaterial} onValueChange={setSelectedMaterial}>
+            <SelectTrigger className="w-full">
+              <SelectValue placeholder="Select study material for context..." />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="none">No material (general questions)</SelectItem>
+              {materials.map((m) => (
+                <SelectItem key={m.id} value={m.id}>
+                  <span className="flex items-center gap-2">
+                    <FileText className="h-3 w-3" /> {m.title}
+                    {m.subject && <span className="text-xs text-muted-foreground">({m.subject})</span>}
+                  </span>
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          {activeMaterial && (
+            <p className="text-xs text-primary mt-1">
+              📚 Using: {activeMaterial.title} — AI will answer based on this material
+            </p>
+          )}
+        </div>
+      )}
 
       <Card className="flex-1 overflow-y-auto p-4 space-y-4 border-0 shadow-sm">
         {messages.length === 0 && (
@@ -106,7 +157,11 @@ export default function AiTutor() {
               <Bot className="h-8 w-8 text-primary" />
             </div>
             <p className="text-lg font-semibold text-foreground">Hi! I'm your AI Tutor</p>
-            <p className="text-sm max-w-xs">Ask me about any subject — math, science, history, languages, and more. I'll explain it step by step!</p>
+            <p className="text-sm max-w-xs">
+              {activeMaterial
+                ? `I'm ready to help you study "${activeMaterial.title}". Ask me anything about it!`
+                : "Upload materials first, then select them here to ask questions about your content!"}
+            </p>
           </div>
         )}
         {messages.map((msg, i) => (
@@ -150,7 +205,7 @@ export default function AiTutor() {
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } }}
-          placeholder="Ask a question..."
+          placeholder={activeMaterial ? `Ask about "${activeMaterial.title}"...` : "Ask a question..."}
           className="min-h-[44px] max-h-32 resize-none"
           rows={1}
         />

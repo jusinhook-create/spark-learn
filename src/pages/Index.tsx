@@ -1,6 +1,6 @@
 import { useAuth } from "@/lib/auth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Bot, Trophy, Video, Flame, Coins, BookOpen } from "lucide-react";
+import { Bot, Trophy, Video, Flame, Coins, BookOpen, MessageSquare } from "lucide-react";
 import { Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
@@ -16,9 +16,10 @@ const quotes = [
 const todayQuote = quotes[new Date().getDate() % quotes.length];
 
 const quickLinks = [
-  { to: "/ai-tutor", icon: Bot, label: "AI Tutor", desc: "Ask anything, learn smarter", color: "bg-primary/10 text-primary" },
-  { to: "/quizzes", icon: Trophy, label: "Quizzes", desc: "Test your knowledge", color: "bg-accent/10 text-accent" },
-  { to: "/classes", icon: Video, label: "Classes", desc: "Browse lessons & recordings", color: "bg-success/10 text-success" },
+  { to: "/materials", icon: BookOpen, label: "Study Materials", desc: "Upload PDFs & text to learn from", color: "bg-primary/10 text-primary" },
+  { to: "/ai-tutor", icon: Bot, label: "AI Tutor", desc: "Ask anything about your materials", color: "bg-accent/10 text-accent" },
+  { to: "/quizzes", icon: Trophy, label: "Quizzes", desc: "Auto-generated from your uploads", color: "bg-warning/10 text-warning" },
+  { to: "/forums", icon: Flame, label: "Community Chat", desc: "Chat & share streaks with learners", color: "bg-destructive/10 text-destructive" },
 ];
 
 export default function Index() {

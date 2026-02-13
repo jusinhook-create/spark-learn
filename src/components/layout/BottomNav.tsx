@@ -1,11 +1,11 @@
 import { NavLink } from "@/components/NavLink";
-import { Home, Bot, Trophy, Video, User } from "lucide-react";
+import { Home, Bot, Trophy, Video, User, Upload, BookOpen, MessageSquare } from "lucide-react";
 
 const navItems = [
   { to: "/", icon: Home, label: "Home" },
+  { to: "/materials", icon: Upload, label: "Materials" },
   { to: "/ai-tutor", icon: Bot, label: "AI Tutor" },
   { to: "/quizzes", icon: Trophy, label: "Quizzes" },
-  { to: "/classes", icon: Video, label: "Classes" },
   { to: "/profile", icon: User, label: "Profile" },
 ];
 

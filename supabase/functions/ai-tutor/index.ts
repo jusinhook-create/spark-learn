@@ -9,9 +9,25 @@ serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {
-    const { messages } = await req.json();
+    const { messages, materialContext } = await req.json();
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY is not configured");
+
+    let systemPrompt = `You are ALPHA THOUGHT's AI Tutor — a friendly, knowledgeable, and encouraging teacher for students of all ages. Your goal is to help learners understand any subject clearly.
+
+Guidelines:
+- Explain concepts step by step with clear structure
+- Use examples, analogies, and real-world applications
+- When appropriate, include bullet points and numbered lists
+- Encourage the student and celebrate their curiosity
+- If a question is ambiguous, ask for clarification
+- Support all subjects: math, science, history, languages, coding, and more
+- Keep responses focused and digestible — not too long
+- Use markdown formatting for clarity (bold, lists, code blocks when relevant)`;
+
+    if (materialContext) {
+      systemPrompt += `\n\nIMPORTANT: The student has uploaded study materials. Base your answers primarily on this content. Here is their study material:\n\n---\n${materialContext.slice(0, 20000)}\n---\n\nAnswer questions based on this material. If the question is outside the material scope, you can still help but mention it's beyond the uploaded content.`;
+    }
 
     const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
@@ -22,20 +38,7 @@ serve(async (req) => {
       body: JSON.stringify({
         model: "google/gemini-3-flash-preview",
         messages: [
-          {
-            role: "system",
-            content: `You are ALPHA THOUGHT's AI Tutor — a friendly, knowledgeable, and encouraging teacher for students of all ages. Your goal is to help learners understand any subject clearly.
-
-Guidelines:
-- Explain concepts step by step with clear structure
-- Use examples, analogies, and real-world applications
-- When appropriate, include bullet points and numbered lists
-- Encourage the student and celebrate their curiosity
-- If a question is ambiguous, ask for clarification
-- Support all subjects: math, science, history, languages, coding, and more
-- Keep responses focused and digestible — not too long
-- Use markdown formatting for clarity (bold, lists, code blocks when relevant)`,
-          },
+          { role: "system", content: systemPrompt },
           ...messages,
         ],
         stream: true,
@@ -45,21 +48,18 @@ Guidelines:
     if (!response.ok) {
       if (response.status === 429) {
         return new Response(JSON.stringify({ error: "I'm getting too many questions right now. Please try again in a moment!" }), {
-          status: 429,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
+          status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
       if (response.status === 402) {
         return new Response(JSON.stringify({ error: "AI credits have been exhausted. Please try again later." }), {
-          status: 402,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
+          status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
       const t = await response.text();
       console.error("AI gateway error:", response.status, t);
       return new Response(JSON.stringify({ error: "AI service is temporarily unavailable." }), {
-        status: 500,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
@@ -69,8 +69,7 @@ Guidelines:
   } catch (e) {
     console.error("chat error:", e);
     return new Response(JSON.stringify({ error: e instanceof Error ? e.message : "Unknown error" }), {
-      status: 500,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
+      status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
 });
