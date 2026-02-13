@@ -38,13 +38,9 @@ export default function Auth() {
           password,
         });
         if (error) throw error;
-        // Send custom confirmation email via edge function
-        supabase.functions.invoke("send-confirmation-email", {
-          body: { email, name: email.split("@")[0] },
-        });
         toast({
-          title: "Account created!",
-          description: "Check your email for a welcome message.",
+          title: "Account created! 🎉",
+          description: "Welcome to Alpha Thought! Redirecting...",
         });
         navigate("/");
       }
