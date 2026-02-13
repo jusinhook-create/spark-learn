@@ -3,7 +3,7 @@ import { useAuth } from "@/lib/auth";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { MessageSquare, Send, Plus, Image, Flame, Loader2, ArrowLeft, Search, Copy, UserPlus } from "lucide-react";
+import { MessageSquare, Send, Plus, Image, Flame, Loader2, ArrowLeft, Search, Copy, UserPlus, X } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
@@ -33,6 +33,8 @@ export default function Forums() {
   const [newDesc, setNewDesc] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
   const [inviteCode, setInviteCode] = useState("");
+  const [isUploadingImage, setIsUploadingImage] = useState(false);
+  const [previewImage, setPreviewImage] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -103,7 +105,6 @@ export default function Forums() {
         is_public: true,
       }).select().single();
       if (error) throw error;
-      // Auto-join as admin
       await supabase.from("group_members").insert({ forum_id: data.id, user_id: user!.id, role: "admin" });
       return data;
     },
@@ -153,12 +154,10 @@ export default function Forums() {
     });
     if (error) {
       if (error.code === "23505") {
-        toast({ title: "Already joined", description: "You're already in this group" });
+        // Already joined, silently continue
       } else {
         toast({ title: "Error", description: error.message, variant: "destructive" });
       }
-    } else {
-      toast({ title: "Joined!" });
     }
   };
 
@@ -182,18 +181,46 @@ export default function Forums() {
     }
   };
 
+  const compressImage = (file: File, maxWidth = 1200, quality = 0.7): Promise<Blob> => {
+    return new Promise((resolve) => {
+      const img = new window.Image();
+      img.onload = () => {
+        const canvas = document.createElement("canvas");
+        let { width, height } = img;
+        if (width > maxWidth) {
+          height = (height * maxWidth) / width;
+          width = maxWidth;
+        }
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext("2d")!;
+        ctx.drawImage(img, 0, 0, width, height);
+        canvas.toBlob((blob) => resolve(blob || file), "image/jpeg", quality);
+      };
+      img.src = URL.createObjectURL(file);
+    });
+  };
+
   const sendImage = async (file: File) => {
     if (!activeForum || !user) return;
-    const filePath = `${user.id}/${Date.now()}-${file.name}`;
-    const { error: uploadErr } = await supabase.storage.from("forum-images").upload(filePath, file);
-    if (uploadErr) { toast({ title: "Upload failed", variant: "destructive" }); return; }
-    const { data: urlData } = supabase.storage.from("forum-images").getPublicUrl(filePath);
-    await supabase.from("forum_messages").insert({
-      forum_id: activeForum.id,
-      user_id: user.id,
-      image_url: urlData.publicUrl,
-      message_type: "image",
-    });
+    setIsUploadingImage(true);
+    try {
+      const compressed = await compressImage(file);
+      const filePath = `${user.id}/${Date.now()}.jpg`;
+      const { error: uploadErr } = await supabase.storage.from("forum-images").upload(filePath, compressed, { contentType: "image/jpeg" });
+      if (uploadErr) throw uploadErr;
+      const { data: urlData } = supabase.storage.from("forum-images").getPublicUrl(filePath);
+      await supabase.from("forum_messages").insert({
+        forum_id: activeForum.id,
+        user_id: user.id,
+        image_url: urlData.publicUrl,
+        message_type: "image",
+      });
+    } catch (e: any) {
+      toast({ title: "Upload failed", description: e.message, variant: "destructive" });
+    } finally {
+      setIsUploadingImage(false);
+    }
   };
 
   const shareStreak = async () => {
@@ -254,7 +281,12 @@ export default function Forums() {
                       </div>
                     </div>
                   ) : msg.message_type === "image" ? (
-                    <img src={msg.image_url!} alt="Shared" className="rounded-2xl max-w-full max-h-60 object-cover" />
+                    <img
+                      src={msg.image_url!}
+                      alt="Shared"
+                      className="rounded-2xl max-w-full max-h-60 object-cover cursor-pointer hover:opacity-90 transition-opacity"
+                      onClick={() => setPreviewImage(msg.image_url!)}
+                    />
                   ) : (
                     <div className={`rounded-2xl px-4 py-2 text-sm ${isMe ? "bg-primary text-primary-foreground" : "bg-secondary"}`}>
                       {msg.content}
@@ -271,9 +303,9 @@ export default function Forums() {
         </div>
 
         <div className="mt-3 flex gap-2 items-end">
-          <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) sendImage(f); }} />
-          <Button variant="ghost" size="icon" className="h-10 w-10 shrink-0" onClick={() => fileInputRef.current?.click()}>
-            <Image className="h-4 w-4" />
+          <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) sendImage(f); e.target.value = ""; }} />
+          <Button variant="ghost" size="icon" className="h-10 w-10 shrink-0" onClick={() => fileInputRef.current?.click()} disabled={isUploadingImage}>
+            {isUploadingImage ? <Loader2 className="h-4 w-4 animate-spin" /> : <Image className="h-4 w-4" />}
           </Button>
           <Button variant="ghost" size="icon" className="h-10 w-10 shrink-0" onClick={shareStreak}>
             <Flame className="h-4 w-4 text-destructive" />
@@ -289,6 +321,29 @@ export default function Forums() {
             <Send className="h-4 w-4" />
           </Button>
         </div>
+
+        {/* WhatsApp-style image preview */}
+        {previewImage && (
+          <div
+            className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center"
+            onClick={() => setPreviewImage(null)}
+          >
+            <Button
+              variant="ghost"
+              size="icon"
+              className="absolute top-4 right-4 text-white hover:bg-white/20 z-10"
+              onClick={() => setPreviewImage(null)}
+            >
+              <X className="h-6 w-6" />
+            </Button>
+            <img
+              src={previewImage}
+              alt="Preview"
+              className="max-w-[95vw] max-h-[90vh] object-contain rounded-lg"
+              onClick={(e) => e.stopPropagation()}
+            />
+          </div>
+        )}
       </div>
     );
   }
