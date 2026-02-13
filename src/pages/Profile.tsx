@@ -1,7 +1,7 @@
 import { useAuth } from "@/lib/auth";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { User, Coins, Flame, Trophy, Award, LogOut, BookOpen } from "lucide-react";
+import { User, Coins, Flame, Trophy, Award, LogOut, Download } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
 
@@ -103,9 +103,16 @@ export default function Profile() {
         )}
       </div>
 
-      <Button variant="outline" className="w-full gap-2" onClick={signOut}>
-        <LogOut className="h-4 w-4" /> Sign Out
-      </Button>
+      <div className="flex flex-col gap-2">
+        <Button variant="outline" className="w-full gap-2" asChild>
+          <a href="/app-release.apk" download>
+            <Download className="h-4 w-4" /> Download App
+          </a>
+        </Button>
+        <Button variant="outline" className="w-full gap-2" onClick={signOut}>
+          <LogOut className="h-4 w-4" /> Sign Out
+        </Button>
+      </div>
     </div>
   );
 }
