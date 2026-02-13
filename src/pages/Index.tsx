@@ -126,7 +126,7 @@ export default function Index() {
       <div>
         <div className="flex items-center justify-between mb-3">
           <h2 className="text-lg font-semibold">Top Learners</h2>
-          <Link to="/profile" className="text-sm font-medium text-primary hover:underline">View All</Link>
+          <Link to="/profile?tab=leaderboard" className="text-sm font-medium text-primary hover:underline">View All</Link>
         </div>
         <Card className="border-0 shadow-sm">
           <CardContent className="p-4 space-y-3">
