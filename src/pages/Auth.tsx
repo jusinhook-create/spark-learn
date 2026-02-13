@@ -37,7 +37,7 @@ export default function Auth() {
         const { error } = await supabase.auth.signUp({
           email,
           password,
-          options: { emailRedirectTo: window.location.origin },
+          options: { emailRedirectTo: "https://confirmation-thumb.lovable.app" },
         });
         if (error) throw error;
         toast({
