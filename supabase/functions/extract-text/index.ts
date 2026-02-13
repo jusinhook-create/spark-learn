@@ -25,18 +25,37 @@ serve(async (req) => {
     let extractedText = "";
 
     if (file_type === "text") {
-      // For text files, download and read content
       const response = await fetch(file_url);
       extractedText = await response.text();
-    } else if (file_type === "pdf") {
-      // Use Lovable AI to extract text from PDF via URL
+    } else if (file_type === "pdf" || file_type === "image" || file_type === "docx") {
       const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
       if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY not configured");
 
-      // Download PDF as base64
-      const pdfResponse = await fetch(file_url);
-      const pdfBuffer = await pdfResponse.arrayBuffer();
-      const base64 = btoa(String.fromCharCode(...new Uint8Array(pdfBuffer)));
+      const fileResponse = await fetch(file_url);
+      const fileBuffer = await fileResponse.arrayBuffer();
+      const uint8 = new Uint8Array(fileBuffer);
+      
+      // Convert to base64 in chunks to avoid stack overflow
+      let base64 = "";
+      const chunkSize = 32768;
+      for (let i = 0; i < uint8.length; i += chunkSize) {
+        const chunk = uint8.subarray(i, i + chunkSize);
+        base64 += String.fromCharCode(...chunk);
+      }
+      base64 = btoa(base64);
+
+      let mimeType = "application/pdf";
+      let systemPrompt = "Extract ALL text content from this PDF document. Return ONLY the raw text content, preserving structure with line breaks. Do not add commentary.";
+      
+      if (file_type === "image") {
+        const ext = title?.split(".").pop()?.toLowerCase() || "png";
+        const mimeMap: Record<string, string> = { jpg: "image/jpeg", jpeg: "image/jpeg", png: "image/png", gif: "image/gif", webp: "image/webp", bmp: "image/bmp" };
+        mimeType = mimeMap[ext] || "image/png";
+        systemPrompt = "Extract ALL text visible in this image using OCR. Also describe any diagrams, charts, or visual content that would be useful for studying. Return the extracted text and descriptions clearly organized.";
+      } else if (file_type === "docx") {
+        mimeType = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+        systemPrompt = "Extract ALL text content from this Word document. Return ONLY the raw text content, preserving structure with headings, paragraphs, lists, and line breaks. Do not add commentary.";
+      }
 
       const aiResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
         method: "POST",
@@ -47,25 +66,25 @@ serve(async (req) => {
         body: JSON.stringify({
           model: "google/gemini-2.5-flash",
           messages: [
-            { role: "system", content: "Extract ALL text content from this PDF document. Return ONLY the raw text content, preserving structure with line breaks. Do not add commentary." },
+            { role: "system", content: systemPrompt },
             { role: "user", content: [
-              { type: "text", text: "Extract all text from this PDF:" },
-              { type: "image_url", image_url: { url: `data:application/pdf;base64,${base64}` } }
+              { type: "text", text: `Extract all text from this ${file_type} file:` },
+              { type: "image_url", image_url: { url: `data:${mimeType};base64,${base64}` } }
             ] }
           ],
         }),
       });
 
       if (!aiResponse.ok) {
-        console.error("AI extraction error:", aiResponse.status);
-        throw new Error("Failed to extract text from PDF");
+        const errText = await aiResponse.text();
+        console.error("AI extraction error:", aiResponse.status, errText);
+        throw new Error(`Failed to extract text from ${file_type}`);
       }
 
       const aiData = await aiResponse.json();
       extractedText = aiData.choices?.[0]?.message?.content || "";
     }
 
-    // Save to study_materials
     const { data, error } = await supabase.from("study_materials").insert({
       user_id: user.id,
       title,
