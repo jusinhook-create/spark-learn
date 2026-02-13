@@ -1,15 +1,16 @@
 import { NavLink } from "@/components/NavLink";
-import { Home, Bot, Trophy, Video, User, BookOpen, FileText, MessageSquare, LogOut } from "lucide-react";
+import { Home, Bot, Trophy, Video, User, BookOpen, FileText, MessageSquare, LogOut, Upload } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
 
 const navItems = [
   { to: "/", icon: Home, label: "Home" },
+  { to: "/materials", icon: Upload, label: "Study Materials" },
   { to: "/ai-tutor", icon: Bot, label: "AI Tutor" },
   { to: "/quizzes", icon: Trophy, label: "Quizzes" },
   { to: "/classes", icon: Video, label: "Classes" },
   { to: "/notes", icon: FileText, label: "Study Notes" },
-  { to: "/forums", icon: MessageSquare, label: "Forums" },
+  { to: "/forums", icon: MessageSquare, label: "Community Chat" },
   { to: "/profile", icon: User, label: "Profile" },
 ];
 

@@ -10,6 +10,9 @@ import Auth from "./pages/Auth";
 import AiTutor from "./pages/AiTutor";
 import Quizzes from "./pages/Quizzes";
 import Classes from "./pages/Classes";
+import Materials from "./pages/Materials";
+import Notes from "./pages/Notes";
+import Forums from "./pages/Forums";
 import Profile from "./pages/Profile";
 import NotFound from "./pages/NotFound";
 
@@ -25,9 +28,12 @@ const App = () => (
           <Routes>
             <Route path="/auth" element={<Auth />} />
             <Route path="/" element={<ProtectedRoute><AppLayout><Index /></AppLayout></ProtectedRoute>} />
+            <Route path="/materials" element={<ProtectedRoute><AppLayout><Materials /></AppLayout></ProtectedRoute>} />
             <Route path="/ai-tutor" element={<ProtectedRoute><AppLayout><AiTutor /></AppLayout></ProtectedRoute>} />
             <Route path="/quizzes" element={<ProtectedRoute><AppLayout><Quizzes /></AppLayout></ProtectedRoute>} />
             <Route path="/classes" element={<ProtectedRoute><AppLayout><Classes /></AppLayout></ProtectedRoute>} />
+            <Route path="/notes" element={<ProtectedRoute><AppLayout><Notes /></AppLayout></ProtectedRoute>} />
+            <Route path="/forums" element={<ProtectedRoute><AppLayout><Forums /></AppLayout></ProtectedRoute>} />
             <Route path="/profile" element={<ProtectedRoute><AppLayout><Profile /></AppLayout></ProtectedRoute>} />
             <Route path="*" element={<NotFound />} />
           </Routes>

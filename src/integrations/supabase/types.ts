@@ -104,6 +104,47 @@ export type Database = {
         }
         Relationships: []
       }
+      forum_messages: {
+        Row: {
+          content: string | null
+          created_at: string
+          forum_id: string
+          id: string
+          image_url: string | null
+          message_type: string
+          streak_data: Json | null
+          user_id: string
+        }
+        Insert: {
+          content?: string | null
+          created_at?: string
+          forum_id: string
+          id?: string
+          image_url?: string | null
+          message_type?: string
+          streak_data?: Json | null
+          user_id: string
+        }
+        Update: {
+          content?: string | null
+          created_at?: string
+          forum_id?: string
+          id?: string
+          image_url?: string | null
+          message_type?: string
+          streak_data?: Json | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "forum_messages_forum_id_fkey"
+            columns: ["forum_id"]
+            isOneToOne: false
+            referencedRelation: "forums"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       forum_posts: {
         Row: {
           content: string
@@ -364,6 +405,42 @@ export type Database = {
           id?: string
           last_activity_date?: string | null
           longest_streak?: number
+          user_id?: string
+        }
+        Relationships: []
+      }
+      study_materials: {
+        Row: {
+          created_at: string
+          extracted_text: string | null
+          file_type: string | null
+          file_url: string | null
+          id: string
+          subject: string | null
+          title: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          extracted_text?: string | null
+          file_type?: string | null
+          file_url?: string | null
+          id?: string
+          subject?: string | null
+          title: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          extracted_text?: string | null
+          file_type?: string | null
+          file_url?: string | null
+          id?: string
+          subject?: string | null
+          title?: string
+          updated_at?: string
           user_id?: string
         }
         Relationships: []
