@@ -48,7 +48,7 @@ serve(async (req) => {
         model: "google/gemini-3-flash-preview",
         messages: [
           {
-            role: "system",
+            role: "system" as const,
             content: `Generate exactly ${count} multiple-choice quiz questions based on the provided study material. Each question must have exactly 4 options.`,
           },
           {

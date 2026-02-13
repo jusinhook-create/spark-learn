@@ -15,7 +15,7 @@ export default function Quizzes() {
     queryFn: async () => {
       const { data } = await supabase
         .from("quizzes")
-        .select("*, profiles!quizzes_created_by_fkey(display_name)")
+        .select("*")
         .eq("is_published", true)
         .order("created_at", { ascending: false });
       return data;
