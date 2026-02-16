@@ -128,7 +128,7 @@ export default function Materials() {
   const generateQuiz = useMutation({
     mutationFn: async (materialId: string) => {
       const resp = await supabase.functions.invoke("generate-quiz", {
-        body: { material_id: materialId, num_questions: 10 },
+        body: { material_id: materialId, num_questions: 20 },
       });
       if (resp.error) throw new Error(resp.error.message);
       if (resp.data?.error) throw new Error(resp.data.error);
@@ -269,7 +269,7 @@ export default function Materials() {
                     </p>
                   )}
 
-                  <div className="flex gap-2 flex-wrap">
+                  <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
                     <Link to={`/ai-tutor?material=${mat.id}`}>
                       <Button size="sm" variant="outline" className="gap-1 text-xs">
                         <Bot className="h-3 w-3" /> Ask AI Tutor

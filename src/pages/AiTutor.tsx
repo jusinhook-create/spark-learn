@@ -2,10 +2,12 @@ import { useState, useRef, useEffect } from "react";
 import { useAuth } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { Card } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Send, Bot, User, Loader2, FileText } from "lucide-react";
 import ReactMarkdown from "react-markdown";
+import remarkMath from "remark-math";
+import rehypeKatex from "rehype-katex";
+import "katex/dist/katex.min.css";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
 import { useSearchParams } from "react-router-dom";
@@ -150,7 +152,8 @@ export default function AiTutor() {
         </div>
       )}
 
-      <Card className="flex-1 overflow-y-auto p-4 space-y-4 border-0 shadow-sm">
+      {/* Messages - flat style, no bubbles */}
+      <div className="flex-1 overflow-y-auto space-y-6 pr-1">
         {messages.length === 0 && (
           <div className="flex flex-col items-center justify-center h-full text-center space-y-3 text-muted-foreground">
             <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-primary/10">
@@ -165,40 +168,43 @@ export default function AiTutor() {
           </div>
         )}
         {messages.map((msg, i) => (
-          <div key={i} className={`flex gap-3 ${msg.role === "user" ? "justify-end" : ""}`}>
-            {msg.role === "assistant" && (
-              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/10">
-                <Bot className="h-4 w-4 text-primary" />
-              </div>
-            )}
-            <div className={`max-w-[80%] rounded-2xl px-4 py-3 text-sm ${msg.role === "user" ? "bg-primary text-primary-foreground" : "bg-secondary"}`}>
+          <div key={i} className="space-y-1">
+            <div className="flex items-center gap-2">
+              {msg.role === "assistant" ? (
+                <Bot className="h-4 w-4 text-primary shrink-0" />
+              ) : (
+                <User className="h-4 w-4 text-muted-foreground shrink-0" />
+              )}
+              <span className="text-xs font-semibold text-muted-foreground">
+                {msg.role === "assistant" ? "AI Tutor" : "You"}
+              </span>
+            </div>
+            <div className="pl-6">
               {msg.role === "assistant" ? (
                 <div className="prose prose-sm max-w-none dark:prose-invert">
-                  <ReactMarkdown>{msg.content}</ReactMarkdown>
+                  <ReactMarkdown remarkPlugins={[remarkMath]} rehypePlugins={[rehypeKatex]}>
+                    {msg.content}
+                  </ReactMarkdown>
                 </div>
               ) : (
-                msg.content
+                <p className="text-sm text-foreground">{msg.content}</p>
               )}
             </div>
-            {msg.role === "user" && (
-              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-secondary">
-                <User className="h-4 w-4" />
-              </div>
-            )}
           </div>
         ))}
         {isLoading && messages[messages.length - 1]?.role !== "assistant" && (
-          <div className="flex gap-3">
-            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/10">
-              <Bot className="h-4 w-4 text-primary" />
+          <div className="space-y-1">
+            <div className="flex items-center gap-2">
+              <Bot className="h-4 w-4 text-primary shrink-0" />
+              <span className="text-xs font-semibold text-muted-foreground">AI Tutor</span>
             </div>
-            <div className="rounded-2xl bg-secondary px-4 py-3">
+            <div className="pl-6">
               <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
             </div>
           </div>
         )}
         <div ref={messagesEndRef} />
-      </Card>
+      </div>
 
       <div className="mt-3 flex gap-2">
         <Textarea

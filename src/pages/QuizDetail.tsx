@@ -154,7 +154,7 @@ export default function QuizDetail() {
             <h1 className="text-2xl font-bold">Quiz Complete!</h1>
             <p className="text-lg">{quiz.title}</p>
 
-            <div className="grid grid-cols-3 gap-3 mt-4">
+            <div className="grid grid-cols-3 gap-2 sm:gap-3 mt-4">
               <div className="text-center">
                 <p className="text-2xl font-bold text-primary">{score}/{totalQ}</p>
                 <p className="text-xs text-muted-foreground">Correct</p>

@@ -21,7 +21,8 @@ serve(async (req) => {
     if (!user) throw new Error("Unauthorized");
 
     const { material_id, num_questions } = await req.json();
-    const count = num_questions || 10;
+    // Increase default to 20, allow up to 30
+    const count = Math.min(num_questions || 20, 30);
 
     // Get material
     const { data: material, error: matErr } = await supabase
@@ -38,6 +39,10 @@ serve(async (req) => {
 
     const textContent = material.extracted_text || material.title;
 
+    // Generate a random seed for variety
+    const seed = Math.random().toString(36).substring(2, 10);
+    const timestamp = new Date().toISOString();
+
     const aiResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
       headers: {
@@ -49,11 +54,22 @@ serve(async (req) => {
         messages: [
           {
             role: "system" as const,
-            content: `Generate exactly ${count} multiple-choice quiz questions based on the provided study material. Each question must have exactly 4 options.`,
+            content: `Generate exactly ${count} multiple-choice quiz questions based on the provided study material. Each question must have exactly 4 options.
+
+IMPORTANT RULES FOR VARIETY:
+- Use this random seed to vary your question selection: ${seed}
+- Current timestamp: ${timestamp}
+- Cover ALL sections and topics in the material, not just the beginning
+- Mix question types: factual recall, conceptual understanding, application, analysis, and comparison
+- Vary difficulty levels: include easy, medium, and hard questions
+- Do NOT repeat similar questions — each must test a different concept or angle
+- Randomize the position of the correct answer among the 4 options
+- Include questions about details, definitions, relationships, causes/effects, and examples
+- Pull from different parts of the material — beginning, middle, and end sections equally`,
           },
           {
             role: "user",
-            content: `Generate ${count} quiz questions from this material:\n\n${textContent.slice(0, 15000)}`,
+            content: `Generate ${count} unique and varied quiz questions from this material. Make sure to cover the ENTIRE material, not just the first section. Seed: ${seed}\n\n${textContent.slice(0, 20000)}`,
           },
         ],
         tools: [{
@@ -84,6 +100,7 @@ serve(async (req) => {
           },
         }],
         tool_choice: { type: "function", function: { name: "create_quiz" } },
+        temperature: 0.9,
       }),
     });
 
@@ -107,6 +124,10 @@ serve(async (req) => {
 
     const quizData = JSON.parse(toolCall.function.arguments);
 
+    // Shuffle questions order for additional variety
+    const shuffledQuestions = quizData.questions
+      .sort(() => Math.random() - 0.5);
+
     // Create quiz
     const { data: quiz, error: quizErr } = await supabase.from("quizzes").insert({
       title: quizData.title,
@@ -114,14 +135,14 @@ serve(async (req) => {
       subject: material.subject,
       created_by: user.id,
       is_published: true,
-      coins_reward: 10,
+      coins_reward: Math.max(10, count),
       time_limit_seconds: count * 30,
     }).select().single();
 
     if (quizErr) throw quizErr;
 
     // Create questions
-    const questions = quizData.questions.map((q: any, i: number) => ({
+    const questions = shuffledQuestions.map((q: any, i: number) => ({
       quiz_id: quiz.id,
       question_text: q.question_text,
       options: q.options,
