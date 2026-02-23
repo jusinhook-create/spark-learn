@@ -1,9 +1,10 @@
 import { useAuth } from "@/lib/auth";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Bot, Trophy, Video, Flame, Coins, BookOpen, MessageSquare } from "lucide-react";
+import { Card, CardContent } from "@/components/ui/card";
+import { Bot, Trophy, Flame, Coins, BookOpen, MessageSquare } from "lucide-react";
 import { Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
+import { useEffect, useState } from "react";
 
 const quotes = [
   "Education is the most powerful weapon which you can use to change the world. — Nelson Mandela",
@@ -24,6 +25,7 @@ const quickLinks = [
 
 export default function Index() {
   const { user } = useAuth();
+  const [showWelcome, setShowWelcome] = useState(true);
 
   const { data: profile } = useQuery({
     queryKey: ["profile", user?.id],
@@ -51,15 +53,49 @@ export default function Index() {
     },
   });
 
+  useEffect(() => {
+    const timer = setTimeout(() => setShowWelcome(false), 3000);
+    return () => clearTimeout(timer);
+  }, []);
+
+  const displayName = profile?.display_name || "Learner";
+
   return (
     <div className="space-y-6">
-      {/* Greeting */}
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight">
-          Welcome back, {profile?.display_name || "Learner"} 👋
-        </h1>
-        <p className="text-muted-foreground mt-1">Ready to learn something new today?</p>
-      </div>
+      {/* Animated Welcome */}
+      {showWelcome && (
+        <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-primary/10 via-accent/5 to-primary/10 p-6 text-center animate-fade-in">
+          {/* Wave layers */}
+          <div className="absolute inset-0 overflow-hidden pointer-events-none">
+            <div className="absolute bottom-0 left-0 right-0 h-16 opacity-20">
+              <svg viewBox="0 0 1200 120" preserveAspectRatio="none" className="w-full h-full animate-[wave_3s_ease-in-out_infinite]">
+                <path d="M0,60 C200,120 400,0 600,60 C800,120 1000,0 1200,60 L1200,120 L0,120 Z" fill="hsl(var(--primary))" />
+              </svg>
+            </div>
+            <div className="absolute bottom-0 left-0 right-0 h-12 opacity-10">
+              <svg viewBox="0 0 1200 120" preserveAspectRatio="none" className="w-full h-full animate-[wave_4s_ease-in-out_infinite_reverse]">
+                <path d="M0,80 C300,20 600,100 900,40 C1050,10 1150,80 1200,60 L1200,120 L0,120 Z" fill="hsl(var(--accent))" />
+              </svg>
+            </div>
+          </div>
+          <div className="relative z-10">
+            <p className="text-sm text-muted-foreground animate-[slideDown_0.6s_ease-out]">Welcome back</p>
+            <h1 className="text-3xl font-bold tracking-tight mt-1 animate-[slideDown_0.8s_ease-out]">
+              {displayName} 👋
+            </h1>
+          </div>
+        </div>
+      )}
+
+      {/* Regular greeting (after animation fades) */}
+      {!showWelcome && (
+        <div className="animate-fade-in">
+          <h1 className="text-2xl font-bold tracking-tight">
+            Welcome back, {displayName} 👋
+          </h1>
+          <p className="text-muted-foreground mt-1">Ready to learn something new today?</p>
+        </div>
+      )}
 
       {/* Stats Row */}
       <div className="grid grid-cols-2 gap-2 sm:gap-3">
