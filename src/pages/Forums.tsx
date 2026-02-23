@@ -3,11 +3,12 @@ import { useAuth } from "@/lib/auth";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { MessageSquare, Send, Plus, Image, Flame, Loader2, ArrowLeft, Search, Copy, UserPlus, X, Trash2 } from "lucide-react";
+import { MessageSquare, Send, Plus, Image, Flame, Loader2, ArrowLeft, Search, Copy, UserPlus, X, Trash2, Pencil, Reply, Share2, Forward } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 
 type ForumMessage = {
   id: string;
@@ -35,6 +36,8 @@ export default function Forums() {
   const [inviteCode, setInviteCode] = useState("");
   const [isUploadingImage, setIsUploadingImage] = useState(false);
   const [previewImage, setPreviewImage] = useState<string | null>(null);
+  const [editingMsg, setEditingMsg] = useState<ForumMessage | null>(null);
+  const [replyingTo, setReplyingTo] = useState<ForumMessage | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -168,16 +171,50 @@ export default function Forums() {
 
   const sendMessage = async () => {
     if (!message.trim() || !activeForum || !user) return;
+
+    if (editingMsg) {
+      const { error } = await supabase.from("forum_messages").update({ content: message.trim() }).eq("id", editingMsg.id);
+      if (error) {
+        toast({ title: "Error", description: error.message, variant: "destructive" });
+      } else {
+        setEditingMsg(null);
+        setMessage("");
+        queryClient.invalidateQueries({ queryKey: ["forum-messages", activeForum.id] });
+      }
+      return;
+    }
+
+    const content = replyingTo
+      ? `> ${replyingTo.profile?.display_name || "User"}: ${replyingTo.content?.slice(0, 60) || "image"}\n\n${message.trim()}`
+      : message.trim();
+
     const { error } = await supabase.from("forum_messages").insert({
       forum_id: activeForum.id,
       user_id: user.id,
-      content: message.trim(),
+      content,
       message_type: "text",
     });
     if (error) {
       toast({ title: "Error", description: error.message, variant: "destructive" });
     } else {
       setMessage("");
+      setReplyingTo(null);
+    }
+  };
+
+  const deleteMessage = async (msgId: string) => {
+    await supabase.from("forum_messages").delete().eq("id", msgId);
+    queryClient.invalidateQueries({ queryKey: ["forum-messages", activeForum?.id] });
+    toast({ title: "Delete successful ✅" });
+  };
+
+  const shareMessage = (msg: ForumMessage) => {
+    const text = msg.content || msg.image_url || "";
+    if (navigator.share) {
+      navigator.share({ text });
+    } else {
+      navigator.clipboard.writeText(text);
+      toast({ title: "Copied to clipboard!" });
     }
   };
 
@@ -263,46 +300,93 @@ export default function Forums() {
             const isMe = msg.user_id === user?.id;
             return (
               <div key={msg.id} className={`flex ${isMe ? "justify-end" : "justify-start"}`}>
-                <div className="max-w-[80%]">
-                  {!isMe && (
-                    <p className="text-[10px] font-medium text-muted-foreground mb-0.5 px-1">
-                      {msg.profile?.display_name || "User"}
-                    </p>
-                  )}
-                  {msg.message_type === "streak" ? (
-                    <div className="bg-gradient-to-r from-destructive/10 to-warning/10 border border-destructive/20 rounded-2xl px-4 py-3">
-                      <div className="flex items-center gap-2">
-                        <Flame className="h-5 w-5 text-destructive" />
-                        <div>
-                          <p className="text-xs font-semibold">{msg.streak_data?.display_name}'s Streak</p>
-                          <p className="text-lg font-bold text-destructive">{msg.streak_data?.current_streak} days 🔥</p>
-                          <p className="text-[10px] text-muted-foreground">Best: {msg.streak_data?.longest_streak} days</p>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <div className="max-w-[80%] cursor-pointer">
+                      {!isMe && (
+                        <p className="text-[10px] font-medium text-muted-foreground mb-0.5 px-1">
+                          {msg.profile?.display_name || "User"}
+                        </p>
+                      )}
+                      {msg.message_type === "streak" ? (
+                        <div className="bg-gradient-to-r from-destructive/10 to-warning/10 border border-destructive/20 rounded-2xl px-4 py-3">
+                          <div className="flex items-center gap-2">
+                            <Flame className="h-5 w-5 text-destructive" />
+                            <div>
+                              <p className="text-xs font-semibold">{msg.streak_data?.display_name}'s Streak</p>
+                              <p className="text-lg font-bold text-destructive">{msg.streak_data?.current_streak} days 🔥</p>
+                              <p className="text-[10px] text-muted-foreground">Best: {msg.streak_data?.longest_streak} days</p>
+                            </div>
+                          </div>
                         </div>
-                      </div>
+                      ) : msg.message_type === "image" ? (
+                        <img
+                          src={msg.image_url!}
+                          alt="Shared"
+                          className="rounded-2xl max-w-full max-h-60 object-cover hover:opacity-90 transition-opacity"
+                          onClick={(e) => { e.stopPropagation(); setPreviewImage(msg.image_url!); }}
+                        />
+                      ) : (
+                        <div className={`rounded-2xl px-4 py-2 text-sm ${isMe ? "bg-primary text-primary-foreground" : "bg-secondary"}`}>
+                          {msg.content?.split("\n").map((line, li) => (
+                            <span key={li} className={line.startsWith(">") ? "text-xs opacity-70 italic block mb-1" : ""}>
+                              {line}
+                              {li < (msg.content?.split("\n").length ?? 0) - 1 && <br />}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                      <p className="text-[10px] text-muted-foreground mt-0.5 px-1">
+                        {new Date(msg.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                      </p>
                     </div>
-                  ) : msg.message_type === "image" ? (
-                    <img
-                      src={msg.image_url!}
-                      alt="Shared"
-                      className="rounded-2xl max-w-full max-h-60 object-cover cursor-pointer hover:opacity-90 transition-opacity"
-                      onClick={() => setPreviewImage(msg.image_url!)}
-                    />
-                  ) : (
-                    <div className={`rounded-2xl px-4 py-2 text-sm ${isMe ? "bg-primary text-primary-foreground" : "bg-secondary"}`}>
-                      {msg.content}
-                    </div>
-                  )}
-                  <p className="text-[10px] text-muted-foreground mt-0.5 px-1">
-                    {new Date(msg.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
-                  </p>
-                </div>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align={isMe ? "end" : "start"}>
+                    <DropdownMenuItem onClick={() => { setReplyingTo(msg); }}>
+                      <Reply className="h-3.5 w-3.5 mr-2" /> Reply
+                    </DropdownMenuItem>
+                    {msg.content && (
+                      <DropdownMenuItem onClick={() => { navigator.clipboard.writeText(msg.content!); toast({ title: "Copied!" }); }}>
+                        <Copy className="h-3.5 w-3.5 mr-2" /> Copy
+                      </DropdownMenuItem>
+                    )}
+                    <DropdownMenuItem onClick={() => shareMessage(msg)}>
+                      <Share2 className="h-3.5 w-3.5 mr-2" /> Share
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => { setReplyingTo(msg); toast({ title: "Forward: select a chat and paste" }); }}>
+                      <Forward className="h-3.5 w-3.5 mr-2" /> Forward
+                    </DropdownMenuItem>
+                    {isMe && msg.message_type === "text" && (
+                      <DropdownMenuItem onClick={() => { setEditingMsg(msg); setMessage(msg.content || ""); }}>
+                        <Pencil className="h-3.5 w-3.5 mr-2" /> Edit
+                      </DropdownMenuItem>
+                    )}
+                    {isMe && (
+                      <DropdownMenuItem className="text-destructive" onClick={() => deleteMessage(msg.id)}>
+                        <Trash2 className="h-3.5 w-3.5 mr-2" /> Delete
+                      </DropdownMenuItem>
+                    )}
+                  </DropdownMenuContent>
+                </DropdownMenu>
               </div>
             );
           })}
           <div ref={messagesEndRef} />
         </div>
 
-        <div className="mt-3 flex gap-2 items-end">
+        {/* Reply/Edit indicator */}
+        {(replyingTo || editingMsg) && (
+          <div className="mt-2 flex items-center gap-2 px-3 py-2 bg-secondary rounded-lg text-xs">
+            <span className="flex-1 truncate">
+              {editingMsg ? "✏️ Editing message" : `↩️ Replying to ${replyingTo?.profile?.display_name || "User"}`}
+            </span>
+            <Button variant="ghost" size="icon" className="h-5 w-5" onClick={() => { setReplyingTo(null); setEditingMsg(null); setMessage(""); }}>
+              <X className="h-3 w-3" />
+            </Button>
+          </div>
+        )}
+
+        <div className="mt-2 flex gap-2 items-end">
           <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) sendImage(f); e.target.value = ""; }} />
           <Button variant="ghost" size="icon" className="h-10 w-10 shrink-0" onClick={() => fileInputRef.current?.click()} disabled={isUploadingImage}>
             {isUploadingImage ? <Loader2 className="h-4 w-4 animate-spin" /> : <Image className="h-4 w-4" />}
@@ -314,7 +398,7 @@ export default function Forums() {
             value={message}
             onChange={(e) => setMessage(e.target.value)}
             onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); sendMessage(); } }}
-            placeholder="Type a message..."
+            placeholder={editingMsg ? "Edit message..." : replyingTo ? "Reply..." : "Type a message..."}
             className="flex-1"
           />
           <Button size="icon" className="h-10 w-10 shrink-0 rounded-xl" onClick={sendMessage} disabled={!message.trim()}>

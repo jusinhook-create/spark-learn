@@ -3,14 +3,15 @@ import { useAuth } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Send, Bot, User, Loader2, FileText } from "lucide-react";
+import { Send, Bot, User, Loader2, FileText, History, Plus, Trash2, ChevronLeft } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkMath from "remark-math";
 import rehypeKatex from "rehype-katex";
 import "katex/dist/katex.min.css";
 import { supabase } from "@/integrations/supabase/client";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSearchParams } from "react-router-dom";
+import { useToast } from "@/hooks/use-toast";
 
 type Msg = { role: "user" | "assistant"; content: string };
 
@@ -18,11 +19,15 @@ const CHAT_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/ai-tutor`;
 
 export default function AiTutor() {
   const { user } = useAuth();
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
   const [searchParams] = useSearchParams();
   const [messages, setMessages] = useState<Msg[]>([]);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [selectedMaterial, setSelectedMaterial] = useState<string>(searchParams.get("material") || "");
+  const [activeConversationId, setActiveConversationId] = useState<string | null>(null);
+  const [showHistory, setShowHistory] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const { data: materials } = useQuery({
@@ -38,21 +43,78 @@ export default function AiTutor() {
     enabled: !!user,
   });
 
+  const { data: conversations } = useQuery({
+    queryKey: ["ai-conversations", user?.id],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("ai_conversations")
+        .select("*")
+        .eq("user_id", user!.id)
+        .order("updated_at", { ascending: false });
+      return data;
+    },
+    enabled: !!user,
+  });
+
   const activeMaterial = materials?.find((m) => m.id === selectedMaterial);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
+  const saveConversation = async (msgs: Msg[]) => {
+    if (!user || msgs.length === 0) return;
+    const title = msgs[0]?.content?.slice(0, 50) || "New Conversation";
+    if (activeConversationId) {
+      await supabase.from("ai_conversations").update({
+        messages: JSON.stringify(msgs),
+        title,
+        updated_at: new Date().toISOString(),
+      }).eq("id", activeConversationId);
+    } else {
+      const { data } = await supabase.from("ai_conversations").insert({
+        user_id: user.id,
+        messages: JSON.stringify(msgs),
+        title,
+      }).select().single();
+      if (data) setActiveConversationId(data.id);
+    }
+    queryClient.invalidateQueries({ queryKey: ["ai-conversations", user.id] });
+  };
+
+  const loadConversation = (conv: any) => {
+    const msgs = typeof conv.messages === "string" ? JSON.parse(conv.messages) : conv.messages;
+    setMessages(msgs);
+    setActiveConversationId(conv.id);
+    setShowHistory(false);
+  };
+
+  const deleteConversation = async (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    await supabase.from("ai_conversations").delete().eq("id", id);
+    if (activeConversationId === id) {
+      setMessages([]);
+      setActiveConversationId(null);
+    }
+    queryClient.invalidateQueries({ queryKey: ["ai-conversations", user?.id] });
+    toast({ title: "Delete successful ✅" });
+  };
+
+  const newChat = () => {
+    setMessages([]);
+    setActiveConversationId(null);
+    setShowHistory(false);
+  };
+
   const send = async () => {
     if (!input.trim() || isLoading) return;
     const userMsg: Msg = { role: "user", content: input.trim() };
     setInput("");
-    setMessages((prev) => [...prev, userMsg]);
+    const newMessages = [...messages, userMsg];
+    setMessages(newMessages);
     setIsLoading(true);
 
     let assistantSoFar = "";
-    const allMessages = [...messages, userMsg];
 
     try {
       const resp = await fetch(CHAT_URL, {
@@ -62,7 +124,7 @@ export default function AiTutor() {
           Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
         },
         body: JSON.stringify({
-          messages: allMessages,
+          messages: newMessages,
           materialContext: activeMaterial?.extracted_text || null,
         }),
       });
@@ -109,6 +171,10 @@ export default function AiTutor() {
           }
         }
       }
+
+      // Save after complete response
+      const finalMessages = [...newMessages, { role: "assistant" as const, content: assistantSoFar }];
+      saveConversation(finalMessages);
     } catch (e: any) {
       setMessages((prev) => [...prev, { role: "assistant", content: `Sorry, I encountered an error: ${e.message}` }]);
     } finally {
@@ -116,13 +182,74 @@ export default function AiTutor() {
     }
   };
 
+  // History sidebar view
+  if (showHistory) {
+    return (
+      <div className="flex flex-col h-[calc(100vh-8rem)] md:h-[calc(100vh-3rem)]">
+        <div className="flex items-center gap-3 mb-4">
+          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setShowHistory(false)}>
+            <ChevronLeft className="h-4 w-4" />
+          </Button>
+          <h1 className="text-xl font-bold">Chat History</h1>
+          <Button variant="outline" size="sm" className="ml-auto gap-1" onClick={newChat}>
+            <Plus className="h-3 w-3" /> New Chat
+          </Button>
+        </div>
+        <div className="flex-1 overflow-y-auto space-y-2">
+          {conversations && conversations.length > 0 ? (
+            conversations.map((conv) => (
+              <div
+                key={conv.id}
+                className={`flex items-center gap-3 p-3 rounded-xl cursor-pointer transition-colors hover:bg-secondary ${
+                  activeConversationId === conv.id ? "bg-primary/10 border border-primary/20" : ""
+                }`}
+                onClick={() => loadConversation(conv)}
+              >
+                <Bot className="h-4 w-4 text-primary shrink-0" />
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium truncate">{conv.title || "Untitled"}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {new Date(conv.updated_at).toLocaleDateString()}
+                  </p>
+                </div>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-7 shrink-0 text-muted-foreground hover:text-destructive"
+                  onClick={(e) => deleteConversation(conv.id, e)}
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                </Button>
+              </div>
+            ))
+          ) : (
+            <div className="text-center py-12 text-muted-foreground">
+              <History className="h-10 w-10 mx-auto mb-2 opacity-30" />
+              <p className="text-sm">No conversations yet</p>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="flex flex-col h-[calc(100vh-8rem)] md:h-[calc(100vh-3rem)]">
-      <div className="mb-4">
-        <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">
-          <Bot className="h-6 w-6 text-primary" /> AI Tutor
-        </h1>
-        <p className="text-sm text-muted-foreground">Ask me anything — I'll use your study materials!</p>
+      <div className="mb-4 flex items-start justify-between">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">
+            <Bot className="h-6 w-6 text-primary" /> AI Tutor
+          </h1>
+          <p className="text-sm text-muted-foreground">Ask me anything — I'll use your study materials!</p>
+        </div>
+        <div className="flex gap-1">
+          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setShowHistory(true)} title="History">
+            <History className="h-4 w-4" />
+          </Button>
+          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={newChat} title="New chat">
+            <Plus className="h-4 w-4" />
+          </Button>
+        </div>
       </div>
 
       {/* Material selector */}
@@ -152,7 +279,7 @@ export default function AiTutor() {
         </div>
       )}
 
-      {/* Messages - flat style, no bubbles */}
+      {/* Messages */}
       <div className="flex-1 overflow-y-auto space-y-6 pr-1">
         {messages.length === 0 && (
           <div className="flex flex-col items-center justify-center h-full text-center space-y-3 text-muted-foreground">
