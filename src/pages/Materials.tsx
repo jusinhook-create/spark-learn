@@ -153,7 +153,17 @@ export default function Materials() {
       return resp.data;
     },
     onSuccess: () => {
-      toast({ title: "Notes Generated!", description: "Check your Study Notes." });
+      toast({
+        title: "Notes Generated! ✅",
+        description: "Your notes are ready.",
+        action: (
+          <Link to="/notes">
+            <Button size="sm" variant="outline" className="gap-1 text-xs">
+              <BookOpen className="h-3 w-3" /> View Notes
+            </Button>
+          </Link>
+        ),
+      });
     },
     onError: (e: any) => {
       toast({ title: "Generation failed", description: e.message, variant: "destructive" });
