@@ -8,12 +8,13 @@ import { Upload, FileText, Trash2, Bot, Trophy, BookOpen, Loader2, ExternalLink,
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 
 export default function Materials() {
   const { user } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [title, setTitle] = useState("");
   const [subject, setSubject] = useState("");
@@ -155,15 +156,9 @@ export default function Materials() {
     onSuccess: () => {
       toast({
         title: "Notes Generated! ✅",
-        description: "Your notes are ready.",
-        action: (
-          <Link to="/notes">
-            <Button size="sm" variant="outline" className="gap-1 text-xs">
-              <BookOpen className="h-3 w-3" /> View Notes
-            </Button>
-          </Link>
-        ),
+        description: "Your notes are ready. Tap to view them.",
       });
+      navigate("/notes");
     },
     onError: (e: any) => {
       toast({ title: "Generation failed", description: e.message, variant: "destructive" });
