@@ -235,7 +235,7 @@ export default function AiTutor() {
   }
 
   return (
-    <div className="flex flex-col h-[calc(100vh-8rem)] md:h-[calc(100vh-3rem)]">
+    <div className="flex flex-col h-[calc(100vh-8rem)] md:h-[calc(100vh-3rem)] overflow-hidden">
       <div className="mb-4 flex items-start justify-between">
         <div>
           <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">
@@ -281,7 +281,7 @@ export default function AiTutor() {
       )}
 
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto space-y-6 pr-1">
+      <div className="flex-1 min-h-0 overflow-y-auto space-y-6 pr-1">
         {messages.length === 0 && (
           <div className="flex flex-col items-center justify-center h-full text-center space-y-3 text-muted-foreground">
             <AiMorphAvatar size={64} isAnimating />

@@ -23,7 +23,6 @@ export default function Admin() {
   const [searchEmail, setSearchEmail] = useState("");
   const [selectedRole, setSelectedRole] = useState<AppRole>("moderator");
 
-  if (!roleLoading && !isAdmin) return <Navigate to="/" replace />;
   if (roleLoading) {
     return (
       <div className="flex min-h-[50vh] items-center justify-center">
