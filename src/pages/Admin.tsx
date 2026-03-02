@@ -23,14 +23,6 @@ export default function Admin() {
   const [searchEmail, setSearchEmail] = useState("");
   const [selectedRole, setSelectedRole] = useState<AppRole>("moderator");
 
-  if (roleLoading) {
-    return (
-      <div className="flex min-h-[50vh] items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
-      </div>
-    );
-  }
-
   // Stats
   const { data: stats } = useQuery({
     queryKey: ["admin-stats"],
@@ -111,6 +103,14 @@ export default function Admin() {
     if (role === "moderator") return "default" as const;
     return "secondary" as const;
   };
+
+  if (roleLoading) {
+    return (
+      <div className="flex min-h-[50vh] items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
 
   const statCards = [
     { label: "Total Users", value: stats?.users ?? 0, icon: Users, color: "text-primary" },
