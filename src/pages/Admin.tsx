@@ -6,11 +6,11 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { Shield, Users, Trash2, BookOpen, Trophy, MessageSquare, Loader2, UserCog, Plus, X } from "lucide-react";
-import { Navigate } from "react-router-dom";
 import { useState } from "react";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import type { Database } from "@/integrations/supabase/types";
 
 type AppRole = Database["public"]["Enums"]["app_role"];
@@ -23,7 +23,6 @@ export default function Admin() {
   const [searchEmail, setSearchEmail] = useState("");
   const [selectedRole, setSelectedRole] = useState<AppRole>("moderator");
 
-  // Stats
   const { data: stats } = useQuery({
     queryKey: ["admin-stats"],
     queryFn: async () => {
@@ -40,10 +39,8 @@ export default function Admin() {
         forums: forums.count ?? 0,
       };
     },
-    enabled: isAdmin,
   });
 
-  // Users with their roles
   const { data: users } = useQuery({
     queryKey: ["admin-users", searchEmail],
     queryFn: async () => {
@@ -54,7 +51,6 @@ export default function Admin() {
       const { data } = await query;
       return data ?? [];
     },
-    enabled: isAdmin,
   });
 
   const { data: allRoles } = useQuery({
@@ -63,7 +59,6 @@ export default function Admin() {
       const { data } = await supabase.from("user_roles").select("*");
       return data ?? [];
     },
-    enabled: isAdmin,
   });
 
   const addRoleMutation = useMutation({
@@ -91,6 +86,25 @@ export default function Admin() {
     },
     onError: (e: Error) => {
       toast({ title: "Failed to remove role", description: e.message, variant: "destructive" });
+    },
+  });
+
+  const deleteUserMutation = useMutation({
+    mutationFn: async (targetUserId: string) => {
+      const resp = await supabase.functions.invoke("admin-delete-user", {
+        body: { target_user_id: targetUserId },
+      });
+      if (resp.error) throw new Error(resp.error.message);
+      if (resp.data?.error) throw new Error(resp.data.error);
+      return resp.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["admin-users"] });
+      queryClient.invalidateQueries({ queryKey: ["admin-stats"] });
+      toast({ title: "User deleted successfully" });
+    },
+    onError: (e: Error) => {
+      toast({ title: "Failed to delete user", description: e.message, variant: "destructive" });
     },
   });
 
@@ -172,13 +186,40 @@ export default function Admin() {
                     <p className="text-sm font-medium truncate">{u.display_name || "No name"}</p>
                     <p className="text-xs text-muted-foreground">{u.coins} coins · {u.education_level || "No level"}</p>
                   </div>
+                  {/* Delete user button - only for admins, can't delete self */}
+                  {isAdmin && u.user_id !== user?.id && (
+                    <AlertDialog>
+                      <AlertDialogTrigger asChild>
+                        <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive shrink-0">
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </AlertDialogTrigger>
+                      <AlertDialogContent>
+                        <AlertDialogHeader>
+                          <AlertDialogTitle>Delete user account?</AlertDialogTitle>
+                          <AlertDialogDescription>
+                            This will permanently delete <strong>{u.display_name || "this user"}</strong>'s account and all their data. This action cannot be undone.
+                          </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                          <AlertDialogCancel>Cancel</AlertDialogCancel>
+                          <AlertDialogAction
+                            onClick={() => deleteUserMutation.mutate(u.user_id)}
+                            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                          >
+                            {deleteUserMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : "Delete"}
+                          </AlertDialogAction>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
+                  )}
                 </div>
                 {/* Roles */}
                 <div className="flex flex-wrap gap-1.5 items-center">
                   {roles.map((role) => (
                     <Badge key={role} variant={roleBadgeColor(role)} className="gap-1 text-xs">
                       {role}
-                      {role !== "user" && u.user_id !== user?.id && (
+                      {isAdmin && role !== "user" && u.user_id !== user?.id && (
                         <button
                           onClick={() => removeRoleMutation.mutate({ userId: u.user_id, role })}
                           className="ml-0.5 hover:opacity-70"
@@ -188,8 +229,8 @@ export default function Admin() {
                       )}
                     </Badge>
                   ))}
-                  {/* Add role */}
-                  {u.user_id !== user?.id && (
+                  {/* Add role - admin only */}
+                  {isAdmin && u.user_id !== user?.id && (
                     <div className="flex items-center gap-1">
                       <Select value={selectedRole} onValueChange={(v) => setSelectedRole(v as AppRole)}>
                         <SelectTrigger className="h-7 w-28 text-xs">
