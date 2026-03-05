@@ -21,10 +21,8 @@ serve(async (req) => {
     if (!user) throw new Error("Unauthorized");
 
     const { material_id, num_questions } = await req.json();
-    // Increase default to 20, allow up to 30
-    const count = Math.min(num_questions || 20, 30);
+    const count = Math.min(num_questions || 60, 60);
 
-    // Get material
     const { data: material, error: matErr } = await supabase
       .from("study_materials")
       .select("*")
@@ -39,9 +37,28 @@ serve(async (req) => {
 
     const textContent = material.extracted_text || material.title;
 
-    // Generate a random seed for variety
+    // Get previously answered questions to avoid repeats
+    const { data: prevAttempts } = await supabase
+      .from("quiz_attempts")
+      .select("quiz_id")
+      .eq("user_id", user.id);
+
+    const prevQuizIds = (prevAttempts || []).map((a) => a.quiz_id);
+    let previousQuestions: string[] = [];
+    if (prevQuizIds.length > 0) {
+      const { data: prevQs } = await supabase
+        .from("questions")
+        .select("question_text")
+        .in("quiz_id", prevQuizIds.slice(0, 10));
+      previousQuestions = (prevQs || []).map((q) => q.question_text);
+    }
+
     const seed = Math.random().toString(36).substring(2, 10);
     const timestamp = new Date().toISOString();
+
+    const avoidList = previousQuestions.length > 0
+      ? `\n\nAVOID REPEATING these previously asked questions:\n${previousQuestions.slice(0, 50).map((q, i) => `${i + 1}. ${q}`).join("\n")}`
+      : "";
 
     const aiResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
@@ -65,11 +82,11 @@ IMPORTANT RULES FOR VARIETY:
 - Do NOT repeat similar questions — each must test a different concept or angle
 - Randomize the position of the correct answer among the 4 options
 - Include questions about details, definitions, relationships, causes/effects, and examples
-- Pull from different parts of the material — beginning, middle, and end sections equally`,
+- Pull from different parts of the material — beginning, middle, and end sections equally${avoidList}`,
           },
           {
             role: "user",
-            content: `Generate ${count} unique and varied quiz questions from this material. Make sure to cover the ENTIRE material, not just the first section. Seed: ${seed}\n\n${textContent.slice(0, 20000)}`,
+            content: `Generate ${count} unique and varied quiz questions from this material. Make sure to cover the ENTIRE material, not just the first section. Seed: ${seed}\n\n${textContent.slice(0, 30000)}`,
           },
         ],
         tools: [{
@@ -100,7 +117,7 @@ IMPORTANT RULES FOR VARIETY:
           },
         }],
         tool_choice: { type: "function", function: { name: "create_quiz" } },
-        temperature: 0.9,
+        temperature: 0.95,
       }),
     });
 
@@ -124,11 +141,9 @@ IMPORTANT RULES FOR VARIETY:
 
     const quizData = JSON.parse(toolCall.function.arguments);
 
-    // Shuffle questions order for additional variety
     const shuffledQuestions = quizData.questions
       .sort(() => Math.random() - 0.5);
 
-    // Create quiz
     const { data: quiz, error: quizErr } = await supabase.from("quizzes").insert({
       title: quizData.title,
       description: quizData.description,
@@ -136,12 +151,11 @@ IMPORTANT RULES FOR VARIETY:
       created_by: user.id,
       is_published: true,
       coins_reward: Math.max(10, count),
-      time_limit_seconds: count * 30,
+      time_limit_seconds: 1800, // 30 minutes
     }).select().single();
 
     if (quizErr) throw quizErr;
 
-    // Create questions
     const questions = shuffledQuestions.map((q: any, i: number) => ({
       quiz_id: quiz.id,
       question_text: q.question_text,

@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { Shield, Users, Trash2, BookOpen, Trophy, MessageSquare, Loader2, UserCog, Plus, X } from "lucide-react";
+import { Shield, Users, Trash2, BookOpen, Trophy, MessageSquare, Loader2, UserCog, Plus, X, Lock } from "lucide-react";
 import { useState } from "react";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -15,6 +15,8 @@ import type { Database } from "@/integrations/supabase/types";
 
 type AppRole = Database["public"]["Enums"]["app_role"];
 
+const ADMIN_PASSWORD = "fawaz.sose06";
+
 export default function Admin() {
   const { isAdmin, isLoading: roleLoading } = useIsAdmin();
   const { user } = useAuth();
@@ -22,6 +24,16 @@ export default function Admin() {
   const queryClient = useQueryClient();
   const [searchEmail, setSearchEmail] = useState("");
   const [selectedRole, setSelectedRole] = useState<AppRole>("moderator");
+  const [passwordInput, setPasswordInput] = useState("");
+  const [isUnlocked, setIsUnlocked] = useState(false);
+
+  const handleUnlock = () => {
+    if (passwordInput === ADMIN_PASSWORD) {
+      setIsUnlocked(true);
+    } else {
+      toast({ title: "Incorrect password", variant: "destructive" });
+    }
+  };
 
   const { data: stats } = useQuery({
     queryKey: ["admin-stats"],
@@ -126,6 +138,33 @@ export default function Admin() {
     );
   }
 
+  // Password gate
+  if (!isUnlocked) {
+    return (
+      <div className="flex min-h-[60vh] items-center justify-center">
+        <Card className="border-0 shadow-sm w-full max-w-sm">
+          <CardContent className="p-6 space-y-4 text-center">
+            <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-primary/10 mx-auto">
+              <Lock className="h-7 w-7 text-primary" />
+            </div>
+            <h2 className="text-xl font-bold">Admin Access</h2>
+            <p className="text-sm text-muted-foreground">Enter the admin password to continue</p>
+            <Input
+              type="password"
+              placeholder="Password"
+              value={passwordInput}
+              onChange={(e) => setPasswordInput(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && handleUnlock()}
+            />
+            <Button className="w-full" onClick={handleUnlock}>
+              Unlock
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
   const statCards = [
     { label: "Total Users", value: stats?.users ?? 0, icon: Users, color: "text-primary" },
     { label: "Study Materials", value: stats?.materials ?? 0, icon: BookOpen, color: "text-accent" },
@@ -186,8 +225,8 @@ export default function Admin() {
                     <p className="text-sm font-medium truncate">{u.display_name || "No name"}</p>
                     <p className="text-xs text-muted-foreground">{u.coins} coins · {u.education_level || "No level"}</p>
                   </div>
-                  {/* Delete user button - only for admins, can't delete self */}
-                  {isAdmin && u.user_id !== user?.id && (
+                  {/* Delete user button - available to password-authenticated admin */}
+                  {u.user_id !== user?.id && (
                     <AlertDialog>
                       <AlertDialogTrigger asChild>
                         <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive shrink-0">
