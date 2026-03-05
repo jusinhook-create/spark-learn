@@ -30,7 +30,7 @@ export default function AiTutor() {
   const [activeConversationId, setActiveConversationId] = useState<string | null>(null);
   const [showHistory, setShowHistory] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
-
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
   const { data: materials } = useQuery({
     queryKey: ["study-materials", user?.id],
     queryFn: async () => {
@@ -58,10 +58,43 @@ export default function AiTutor() {
   });
 
   const activeMaterial = materials?.find((m) => m.id === selectedMaterial);
+  const scrollingEnabled = true;
+
+  const isMobile = () => {
+    return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) ||
+           (window.innerWidth <= 768 && 'ontouchstart' in window);
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === "Enter") {
+      if (isMobile()) {
+        return;
+      } else {
+        if (!e.shiftKey) {
+          e.preventDefault();
+          send();
+        }
+      }
+    }
+  };
+
+  const showMobileHelper = isMobile() && input.trim();
 
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
+    if (!scrollingEnabled) return;
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth", block: "end", inline: "nearest" });
+  }, [messages, scrollingEnabled]);
+
+  useEffect(() => {
+    const prevHtmlOverflow = document.documentElement.style.overflowY;
+    const prevBodyOverflow = document.body.style.overflowY;
+    document.documentElement.style.overflowY = "hidden";
+    document.body.style.overflowY = "hidden";
+    return () => {
+      document.documentElement.style.overflowY = prevHtmlOverflow;
+      document.body.style.overflowY = prevBodyOverflow;
+    };
+  }, []);
 
   const saveConversation = async (msgs: Msg[]) => {
     if (!user || msgs.length === 0) return;
@@ -275,17 +308,19 @@ export default function AiTutor() {
   // History sidebar view
   if (showHistory) {
     return (
-      <div className="flex flex-col h-[calc(100vh-8rem)] md:h-[calc(100vh-3rem)]">
-        <div className="flex items-center gap-3 mb-4">
-          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setShowHistory(false)}>
-            <ChevronLeft className="h-4 w-4" />
-          </Button>
-          <h1 className="text-xl font-bold">Chat History</h1>
-          <Button variant="outline" size="sm" className="ml-auto gap-1" onClick={newChat}>
-            <Plus className="h-3 w-3" /> New Chat
-          </Button>
+      <div className="flex flex-col h-full overflow-hidden">
+        <div className="flex-shrink-0 p-6 pb-4">
+          <div className="flex items-center gap-3 mb-4">
+            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setShowHistory(false)}>
+              <ChevronLeft className="h-4 w-4" />
+            </Button>
+            <h1 className="text-xl font-bold">Chat History</h1>
+            <Button variant="outline" size="sm" className="ml-auto gap-1" onClick={newChat}>
+              <Plus className="h-3 w-3" /> New Chat
+            </Button>
+          </div>
         </div>
-        <div className="flex-1 overflow-y-auto space-y-2">
+        <div className="flex-1 min-h-0 w-full overflow-y-auto overscroll-contain px-6 space-y-2">
           {conversations && conversations.length > 0 ? (
             conversations.map((conv) => (
               <div
@@ -324,53 +359,55 @@ export default function AiTutor() {
   }
 
   return (
-    <div className="flex flex-col h-[calc(100vh-8rem)] md:h-[calc(100vh-3rem)] overflow-hidden">
-      <div className="mb-4 flex items-start justify-between">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">
-            <AiMorphAvatar size={28} /> AI Tutor
-          </h1>
-          <p className="text-sm text-muted-foreground">Ask me anything — I'll use your study materials!</p>
+    <div className="flex flex-col h-full overflow-hidden">
+      <div className="flex-shrink-0 p-6 pb-4">
+        <div className="mb-4 flex items-start justify-between">
+          <div>
+            <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">
+              <AiMorphAvatar size={28} /> AI Tutor
+            </h1>
+            <p className="text-sm text-muted-foreground">Ask me anything — I'll use your study materials!</p>
+          </div>
+          <div className="flex gap-1">
+            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setShowHistory(true)} title="History">
+              <History className="h-4 w-4" />
+            </Button>
+            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={newChat} title="New chat">
+              <Plus className="h-4 w-4" />
+            </Button>
+          </div>
         </div>
-        <div className="flex gap-1">
-          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setShowHistory(true)} title="History">
-            <History className="h-4 w-4" />
-          </Button>
-          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={newChat} title="New chat">
-            <Plus className="h-4 w-4" />
-          </Button>
-        </div>
+
+        {/* Material selector */}
+        {materials && materials.length > 0 && (
+          <div className="mb-3">
+            <Select value={selectedMaterial} onValueChange={setSelectedMaterial}>
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder="Select study material for context..." />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">No material (general questions)</SelectItem>
+                {materials.map((m) => (
+                  <SelectItem key={m.id} value={m.id}>
+                    <span className="flex items-center gap-2">
+                      <FileText className="h-3 w-3" /> {m.title}
+                      {m.subject && <span className="text-xs text-muted-foreground">({m.subject})</span>}
+                    </span>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {activeMaterial && (
+              <p className="text-xs text-primary mt-1">
+                📚 Using: {activeMaterial.title} — AI will answer based on this material
+              </p>
+            )}
+          </div>
+        )}
       </div>
 
-      {/* Material selector */}
-      {materials && materials.length > 0 && (
-        <div className="mb-3">
-          <Select value={selectedMaterial} onValueChange={setSelectedMaterial}>
-            <SelectTrigger className="w-full">
-              <SelectValue placeholder="Select study material for context..." />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="none">No material (general questions)</SelectItem>
-              {materials.map((m) => (
-                <SelectItem key={m.id} value={m.id}>
-                  <span className="flex items-center gap-2">
-                    <FileText className="h-3 w-3" /> {m.title}
-                    {m.subject && <span className="text-xs text-muted-foreground">({m.subject})</span>}
-                  </span>
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          {activeMaterial && (
-            <p className="text-xs text-primary mt-1">
-              📚 Using: {activeMaterial.title} — AI will answer based on this material
-            </p>
-          )}
-        </div>
-      )}
-
       {/* Messages */}
-      <div className="flex-1 min-h-0 overflow-y-auto space-y-6 pr-1">
+      <div className="flex-1 min-h-0 w-full overflow-y-auto overscroll-contain px-6 space-y-6">
         {messages.length === 0 && (
           <div className="flex flex-col items-center justify-center h-full text-center space-y-3 text-muted-foreground">
             <AiMorphAvatar size={64} isAnimating />
@@ -444,18 +481,26 @@ export default function AiTutor() {
         <div ref={messagesEndRef} />
       </div>
 
-      <div className="mt-3 flex gap-2">
-        <Textarea
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } }}
-          placeholder={activeMaterial ? `Ask about "${activeMaterial.title}"...` : "Ask a question..."}
-          className="min-h-[44px] max-h-32 resize-none"
-          rows={1}
-        />
-        <Button onClick={send} disabled={isLoading || !input.trim()} size="icon" className="h-11 w-11 shrink-0 rounded-xl">
-          <Send className="h-4 w-4" />
-        </Button>
+      <div className="flex-shrink-0 p-6 pt-3 overflow-hidden">
+        <div className="flex gap-2">
+          <Textarea
+            ref={textareaRef}
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            onKeyDown={handleKeyDown}
+            placeholder={activeMaterial ? `Ask about "${activeMaterial.title}"...` : "Ask a question..."}
+            className="min-h-[44px] max-h-32 resize-none"
+            rows={1}
+          />
+          <Button onClick={send} disabled={isLoading || !input.trim()} size="icon" className="h-11 w-11 shrink-0 rounded-xl">
+            <Send className="h-4 w-4" />
+          </Button>
+        </div>
+        {showMobileHelper && (
+          <p className="text-xs text-muted-foreground mt-2 text-center">
+            💡 On mobile: Enter creates new line • Tap send button to submit
+          </p>
+        )}
       </div>
     </div>
   );
