@@ -129,7 +129,7 @@ export default function Materials() {
   const generateQuiz = useMutation({
     mutationFn: async (materialId: string) => {
       const resp = await supabase.functions.invoke("generate-quiz", {
-        body: { material_id: materialId, num_questions: 20 },
+        body: { material_id: materialId, num_questions: 60 },
       });
       if (resp.error) throw new Error(resp.error.message);
       if (resp.data?.error) throw new Error(resp.data.error);

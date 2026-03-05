@@ -3,7 +3,7 @@ import { useAuth } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Send, User, Loader2, FileText, History, Plus, Trash2, ChevronLeft } from "lucide-react";
+import { Send, User, Loader2, FileText, History, Plus, Trash2, ChevronLeft, ThumbsUp, ThumbsDown } from "lucide-react";
 import AiMorphAvatar from "@/components/AiMorphAvatar";
 import ReactMarkdown from "react-markdown";
 import remarkMath from "remark-math";
@@ -14,7 +14,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSearchParams } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
 
-type Msg = { role: "user" | "assistant"; content: string };
+type Msg = { role: "user" | "assistant"; content: string; rating?: "up" | "down" };
 
 const CHAT_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/ai-tutor`;
 
@@ -107,6 +107,27 @@ export default function AiTutor() {
     setShowHistory(false);
   };
 
+  const rateMessage = (index: number, rating: "up" | "down") => {
+    setMessages((prev) => {
+      const updated = prev.map((m, i) => (i === index ? { ...m, rating } : m));
+      saveConversation(updated);
+      return updated;
+    });
+    toast({ title: rating === "up" ? "Thanks for the feedback! 👍" : "I'll try to improve! 👎" });
+  };
+
+  const isImageRequest = (text: string) => {
+    const patterns = /\b(generate|create|make|draw|design)\b.*\b(image|logo|picture|illustration|icon|graphic|poster|banner)\b/i;
+    return patterns.test(text);
+  };
+
+  const isDocumentRequest = (text: string) => {
+    const patterns = /\b(generate|create|make|write)\b.*\b(pdf|document|word|doc|report|essay|paper)\b/i;
+    return patterns.test(text);
+  };
+
+  const CONTENT_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/generate-content`;
+
   const send = async () => {
     if (!input.trim() || isLoading) return;
     const userMsg: Msg = { role: "user", content: input.trim() };
@@ -115,9 +136,78 @@ export default function AiTutor() {
     setMessages(newMessages);
     setIsLoading(true);
 
+    // Check for image generation request
+    if (isImageRequest(userMsg.content)) {
+      try {
+        const resp = await fetch(CONTENT_URL, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+          },
+          body: JSON.stringify({ prompt: userMsg.content, type: "image" }),
+        });
+        const data = await resp.json();
+        if (data.error) throw new Error(data.error);
+        const content = data.imageUrl
+          ? `Here's your generated image:\n\n![Generated Image](${data.imageUrl})\n\n${data.text || ""}`
+          : "Sorry, I couldn't generate the image. Please try again.";
+        const finalMsgs: Msg[] = [...newMessages, { role: "assistant", content }];
+        setMessages(finalMsgs);
+        saveConversation(finalMsgs);
+      } catch (e: any) {
+        setMessages((prev) => [...prev, { role: "assistant", content: `Image generation error: ${e.message}` }]);
+      } finally {
+        setIsLoading(false);
+      }
+      return;
+    }
+
+    // Check for document generation request
+    if (isDocumentRequest(userMsg.content)) {
+      try {
+        const resp = await fetch(CONTENT_URL, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+          },
+          body: JSON.stringify({ prompt: userMsg.content, type: "document" }),
+        });
+        const data = await resp.json();
+        if (data.error) throw new Error(data.error);
+        const content = `📄 **Generated Document:**\n\n${data.content}\n\n---\n*💡 Tip: Select and copy this content to paste into Word or Google Docs. You can also print this page as PDF using Ctrl+P / Cmd+P.*`;
+        const finalMsgs: Msg[] = [...newMessages, { role: "assistant", content }];
+        setMessages(finalMsgs);
+        saveConversation(finalMsgs);
+      } catch (e: any) {
+        setMessages((prev) => [...prev, { role: "assistant", content: `Document generation error: ${e.message}` }]);
+      } finally {
+        setIsLoading(false);
+      }
+      return;
+    }
+
     let assistantSoFar = "";
 
     try {
+      // Build messages for API, including rating feedback context
+      const apiMessages = newMessages.map((m) => {
+        const base = { role: m.role, content: m.content };
+        return base;
+      });
+
+      // Add rating context if any messages were rated
+      const ratedMessages = newMessages.filter((m) => m.rating);
+      if (ratedMessages.length > 0) {
+        const feedbackNote = ratedMessages
+          .map((m) => `[User ${m.rating === "up" ? "liked" : "disliked"} this response: "${m.content.slice(0, 80)}..."]`)
+          .join("\n");
+        apiMessages.push({ role: "user" as const, content: `[SYSTEM NOTE - User feedback on previous responses:\n${feedbackNote}\nPlease adjust your style accordingly.]` });
+        // Replace the last user message to be the actual question
+        apiMessages.pop();
+      }
+
       const resp = await fetch(CHAT_URL, {
         method: "POST",
         headers: {
@@ -125,7 +215,7 @@ export default function AiTutor() {
           Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
         },
         body: JSON.stringify({
-          messages: newMessages,
+          messages: apiMessages,
           materialContext: activeMaterial?.extracted_text || null,
         }),
       });
@@ -173,7 +263,6 @@ export default function AiTutor() {
         }
       }
 
-      // Save after complete response
       const finalMessages = [...newMessages, { role: "assistant" as const, content: assistantSoFar }];
       saveConversation(finalMessages);
     } catch (e: any) {
@@ -315,17 +404,40 @@ export default function AiTutor() {
               ) : (
                 <p className="text-sm text-foreground">{msg.content}</p>
               )}
+              {/* Rating buttons for assistant messages */}
+              {msg.role === "assistant" && !isLoading && (
+                <div className="flex items-center gap-1 mt-2">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className={`h-7 w-7 ${msg.rating === "up" ? "text-primary bg-primary/10" : "text-muted-foreground"}`}
+                    onClick={() => rateMessage(i, "up")}
+                  >
+                    <ThumbsUp className="h-3.5 w-3.5" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className={`h-7 w-7 ${msg.rating === "down" ? "text-destructive bg-destructive/10" : "text-muted-foreground"}`}
+                    onClick={() => rateMessage(i, "down")}
+                  >
+                    <ThumbsDown className="h-3.5 w-3.5" />
+                  </Button>
+                </div>
+              )}
             </div>
           </div>
         ))}
+        {/* Thinking indicator */}
         {isLoading && messages[messages.length - 1]?.role !== "assistant" && (
           <div className="space-y-1">
             <div className="flex items-center gap-2">
               <AiMorphAvatar size={18} isAnimating />
               <span className="text-xs font-semibold text-muted-foreground">AI Tutor</span>
             </div>
-            <div className="pl-6">
+            <div className="pl-6 flex items-center gap-2">
               <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+              <span className="text-sm text-muted-foreground italic animate-pulse">Thinking…</span>
             </div>
           </div>
         )}

@@ -4,7 +4,7 @@ import { useAuth } from "@/lib/auth";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
-import { Trophy, Clock, ArrowLeft, CheckCircle, XCircle, Coins, Loader2 } from "lucide-react";
+import { Trophy, Clock, ArrowLeft, CheckCircle, XCircle, Coins, Loader2, Share2, ChevronLeft, ChevronRight } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
@@ -16,9 +16,7 @@ export default function QuizDetail() {
   const { toast } = useToast();
 
   const [currentQ, setCurrentQ] = useState(0);
-  const [selectedAnswer, setSelectedAnswer] = useState<number | null>(null);
-  const [answered, setAnswered] = useState(false);
-  const [score, setScore] = useState(0);
+  const [answers, setAnswers] = useState<(number | null)[]>([]);
   const [finished, setFinished] = useState(false);
   const [timeLeft, setTimeLeft] = useState(0);
 
@@ -53,6 +51,12 @@ export default function QuizDetail() {
   }, [quiz]);
 
   useEffect(() => {
+    if (questions && answers.length === 0) {
+      setAnswers(new Array(questions.length).fill(null));
+    }
+  }, [questions]);
+
+  useEffect(() => {
     if (finished || !timeLeft) return;
     const timer = setInterval(() => {
       setTimeLeft((t) => {
@@ -66,6 +70,10 @@ export default function QuizDetail() {
     }, 1000);
     return () => clearInterval(timer);
   }, [finished, timeLeft]);
+
+  const score = questions
+    ? answers.reduce((acc, a, i) => acc + (a === questions[i]?.correct_answer_index ? 1 : 0), 0)
+    : 0;
 
   const submitAttempt = useMutation({
     mutationFn: async (finalScore: number) => {
@@ -81,8 +89,6 @@ export default function QuizDetail() {
       });
       if (error) throw error;
 
-      // Award coins
-      // Award coins - direct update
       const { data: profile } = await supabase.from("profiles").select("coins").eq("user_id", user!.id).single();
       if (profile) {
         await supabase.from("profiles").update({ coins: (profile.coins || 0) + coinsEarned }).eq("user_id", user!.id);
@@ -93,29 +99,45 @@ export default function QuizDetail() {
   });
 
   const handleAnswer = (index: number) => {
-    if (answered) return;
-    setSelectedAnswer(index);
-    setAnswered(true);
-    const correct = questions![currentQ].correct_answer_index;
-    if (index === correct) setScore((s) => s + 1);
+    setAnswers((prev) => {
+      const next = [...prev];
+      next[currentQ] = index;
+      return next;
+    });
   };
 
   const handleNext = () => {
     if (!questions) return;
     if (currentQ + 1 >= questions.length) {
-      const finalScore = score + (selectedAnswer === questions[currentQ].correct_answer_index ? 0 : 0);
       setFinished(true);
       submitAttempt.mutate(score);
     } else {
       setCurrentQ((c) => c + 1);
-      setSelectedAnswer(null);
-      setAnswered(false);
     }
+  };
+
+  const handlePrev = () => {
+    if (currentQ > 0) setCurrentQ((c) => c - 1);
   };
 
   const handleFinishEarly = () => {
     setFinished(true);
     submitAttempt.mutate(score);
+  };
+
+  const handleShareStreak = async () => {
+    const totalQ = questions?.length || 0;
+    const pct = Math.round((score / totalQ) * 100);
+    const shareText = `🏆 I scored ${score}/${totalQ} (${pct}%) on "${quiz?.title}" on Alpha Thought! 🔥`;
+
+    if (navigator.share) {
+      try {
+        await navigator.share({ title: "My Quiz Score", text: shareText });
+      } catch {}
+    } else {
+      await navigator.clipboard.writeText(shareText);
+      toast({ title: "Score copied to clipboard! 📋" });
+    }
   };
 
   if (quizLoading || questionsLoading) {
@@ -171,13 +193,23 @@ export default function QuizDetail() {
 
             <Progress value={pct} className="mt-4" />
 
-            <div className="flex gap-3 mt-6">
-              <Button variant="outline" className="flex-1" onClick={() => navigate("/quizzes")}>
-                Back to Quizzes
+            <div className="flex flex-col gap-2 mt-6">
+              <Button onClick={handleShareStreak} variant="outline" className="gap-2">
+                <Share2 className="h-4 w-4" /> Share My Score 🔥
               </Button>
-              <Button className="flex-1" onClick={() => { setCurrentQ(0); setScore(0); setFinished(false); setAnswered(false); setSelectedAnswer(null); setTimeLeft(quiz.time_limit_seconds || 300); }}>
-                Retry
-              </Button>
+              <div className="flex gap-3">
+                <Button variant="outline" className="flex-1" onClick={() => navigate("/quizzes")}>
+                  Back to Quizzes
+                </Button>
+                <Button className="flex-1" onClick={() => {
+                  setCurrentQ(0);
+                  setAnswers(new Array(questions.length).fill(null));
+                  setFinished(false);
+                  setTimeLeft(quiz.time_limit_seconds || 300);
+                }}>
+                  Retry
+                </Button>
+              </div>
             </div>
           </CardContent>
         </Card>
@@ -190,6 +222,8 @@ export default function QuizDetail() {
   const progress = ((currentQ + 1) / questions.length) * 100;
   const mins = Math.floor(timeLeft / 60);
   const secs = timeLeft % 60;
+  const selectedAnswer = answers[currentQ];
+  const answered = selectedAnswer !== null;
 
   return (
     <div className="space-y-4">
@@ -215,23 +249,17 @@ export default function QuizDetail() {
           <h2 className="text-lg font-semibold mb-4">{q.question_text}</h2>
           <div className="space-y-2">
             {options.map((opt, i) => {
-              let variant: "outline" | "default" | "destructive" | "secondary" = "outline";
-              if (answered) {
-                if (i === q.correct_answer_index) variant = "default";
-                else if (i === selectedAnswer && i !== q.correct_answer_index) variant = "destructive";
-              }
+              const isSelected = selectedAnswer === i;
               return (
                 <Button
                   key={i}
-                  variant={variant}
-                  className={`w-full justify-start text-left h-auto py-3 px-4 ${!answered && selectedAnswer === i ? "ring-2 ring-primary" : ""}`}
+                  variant={isSelected ? "default" : "outline"}
+                  className={`w-full justify-start text-left h-auto py-3 px-4`}
                   onClick={() => handleAnswer(i)}
-                  disabled={answered}
                 >
                   <span className="mr-2 font-bold text-muted-foreground">{String.fromCharCode(65 + i)}.</span>
                   {opt}
-                  {answered && i === q.correct_answer_index && <CheckCircle className="h-4 w-4 ml-auto text-primary-foreground" />}
-                  {answered && i === selectedAnswer && i !== q.correct_answer_index && <XCircle className="h-4 w-4 ml-auto" />}
+                  {isSelected && <CheckCircle className="h-4 w-4 ml-auto" />}
                 </Button>
               );
             })}
@@ -240,12 +268,37 @@ export default function QuizDetail() {
       </Card>
 
       <div className="flex gap-3">
+        <Button variant="outline" size="icon" onClick={handlePrev} disabled={currentQ === 0}>
+          <ChevronLeft className="h-4 w-4" />
+        </Button>
         <Button variant="outline" className="flex-1" onClick={handleFinishEarly}>
           End Quiz
         </Button>
         <Button className="flex-1" onClick={handleNext} disabled={!answered}>
           {currentQ + 1 >= questions.length ? "Finish" : "Next"}
         </Button>
+        <Button variant="outline" size="icon" onClick={handleNext} disabled={!answered || currentQ + 1 >= questions.length}>
+          <ChevronRight className="h-4 w-4" />
+        </Button>
+      </div>
+
+      {/* Question navigator dots */}
+      <div className="flex flex-wrap gap-1.5 justify-center">
+        {questions.map((_, i) => (
+          <button
+            key={i}
+            onClick={() => setCurrentQ(i)}
+            className={`h-6 w-6 rounded-full text-[10px] font-bold transition-colors ${
+              i === currentQ
+                ? "bg-primary text-primary-foreground"
+                : answers[i] !== null
+                ? "bg-primary/20 text-primary"
+                : "bg-secondary text-muted-foreground"
+            }`}
+          >
+            {i + 1}
+          </button>
+        ))}
       </div>
     </div>
   );
