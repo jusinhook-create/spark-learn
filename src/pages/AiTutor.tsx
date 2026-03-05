@@ -116,6 +116,18 @@ export default function AiTutor() {
     toast({ title: rating === "up" ? "Thanks for the feedback! 👍" : "I'll try to improve! 👎" });
   };
 
+  const isImageRequest = (text: string) => {
+    const patterns = /\b(generate|create|make|draw|design)\b.*\b(image|logo|picture|illustration|icon|graphic|poster|banner)\b/i;
+    return patterns.test(text);
+  };
+
+  const isDocumentRequest = (text: string) => {
+    const patterns = /\b(generate|create|make|write)\b.*\b(pdf|document|word|doc|report|essay|paper)\b/i;
+    return patterns.test(text);
+  };
+
+  const CONTENT_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/generate-content`;
+
   const send = async () => {
     if (!input.trim() || isLoading) return;
     const userMsg: Msg = { role: "user", content: input.trim() };
@@ -123,6 +135,58 @@ export default function AiTutor() {
     const newMessages = [...messages, userMsg];
     setMessages(newMessages);
     setIsLoading(true);
+
+    // Check for image generation request
+    if (isImageRequest(userMsg.content)) {
+      try {
+        const resp = await fetch(CONTENT_URL, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+          },
+          body: JSON.stringify({ prompt: userMsg.content, type: "image" }),
+        });
+        const data = await resp.json();
+        if (data.error) throw new Error(data.error);
+        const content = data.imageUrl
+          ? `Here's your generated image:\n\n![Generated Image](${data.imageUrl})\n\n${data.text || ""}`
+          : "Sorry, I couldn't generate the image. Please try again.";
+        const finalMsgs: Msg[] = [...newMessages, { role: "assistant", content }];
+        setMessages(finalMsgs);
+        saveConversation(finalMsgs);
+      } catch (e: any) {
+        setMessages((prev) => [...prev, { role: "assistant", content: `Image generation error: ${e.message}` }]);
+      } finally {
+        setIsLoading(false);
+      }
+      return;
+    }
+
+    // Check for document generation request
+    if (isDocumentRequest(userMsg.content)) {
+      try {
+        const resp = await fetch(CONTENT_URL, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+          },
+          body: JSON.stringify({ prompt: userMsg.content, type: "document" }),
+        });
+        const data = await resp.json();
+        if (data.error) throw new Error(data.error);
+        const content = `📄 **Generated Document:**\n\n${data.content}\n\n---\n*💡 Tip: Select and copy this content to paste into Word or Google Docs. You can also print this page as PDF using Ctrl+P / Cmd+P.*`;
+        const finalMsgs: Msg[] = [...newMessages, { role: "assistant", content }];
+        setMessages(finalMsgs);
+        saveConversation(finalMsgs);
+      } catch (e: any) {
+        setMessages((prev) => [...prev, { role: "assistant", content: `Document generation error: ${e.message}` }]);
+      } finally {
+        setIsLoading(false);
+      }
+      return;
+    }
 
     let assistantSoFar = "";
 
