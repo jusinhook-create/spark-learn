@@ -407,9 +407,9 @@ export default function AiTutor() {
       </div>
 
       {/* Messages */}
-      <div className="flex-1 min-h-0 w-full overflow-y-auto overscroll-contain px-6 space-y-6 pb-24 md:pb-0">
+      <div className="flex-1 min-h-0 w-full overflow-y-auto overscroll-contain px-6 space-y-6">
         {messages.length === 0 && (
-          <div className="flex flex-col items-center justify-center h-full text-center space-y-4 text-muted-foreground">
+          <div className="flex flex-col items-center justify-center h-full text-center space-y-3 text-muted-foreground">
             <AiMorphAvatar size={64} isAnimating />
             <p className="text-lg font-semibold text-foreground">Hi! I'm your AI Tutor</p>
             <p className="text-sm max-w-xs">
@@ -417,27 +417,6 @@ export default function AiTutor() {
                 ? `I'm ready to help you study "${activeMaterial.title}". Ask me anything about it!`
                 : "Upload materials first, then select them here to ask questions about your content!"}
             </p>
-            <div className="w-full max-w-xl px-2 sm:px-4">
-              <div className="flex gap-2">
-                <Textarea
-                  ref={textareaRef}
-                  value={input}
-                  onChange={(e) => setInput(e.target.value)}
-                  onKeyDown={handleKeyDown}
-                  placeholder={activeMaterial ? `Ask about "${activeMaterial.title}"...` : "Ask a question..."}
-                  className="min-h-[48px] max-h-32 resize-none"
-                  rows={1}
-                />
-                <Button onClick={send} disabled={isLoading || !input.trim()} size="icon" className="h-12 w-12 shrink-0 rounded-xl">
-                  <Send className="h-5 w-5" />
-                </Button>
-              </div>
-              {showMobileHelper && (
-                <p className="text-xs text-muted-foreground mt-2 text-center">
-                  💡 On mobile: Enter creates new line • Tap send button to submit
-                </p>
-              )}
-            </div>
           </div>
         )}
         {messages.map((msg, i) => (
@@ -502,29 +481,27 @@ export default function AiTutor() {
         <div ref={messagesEndRef} />
       </div>
 
-      {messages.length > 0 && (
-        <div className="flex-shrink-0 sticky bottom-16 md:bottom-0 z-40 p-4 md:p-6 pt-3 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/75 border-t">
-          <div className="flex gap-2">
-            <Textarea
-              ref={textareaRef}
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              onKeyDown={handleKeyDown}
-              placeholder={activeMaterial ? `Ask about "${activeMaterial.title}"...` : "Ask a question..."}
-              className="min-h-[44px] max-h-32 resize-none"
-              rows={1}
-            />
-            <Button onClick={send} disabled={isLoading || !input.trim()} size="icon" className="h-11 w-11 shrink-0 rounded-xl">
-              <Send className="h-4 w-4" />
-            </Button>
-          </div>
-          {showMobileHelper && (
-            <p className="text-xs text-muted-foreground mt-2 text-center">
-              💡 On mobile: Enter creates new line • Tap send button to submit
-            </p>
-          )}
+      <div className="flex-shrink-0 p-6 pt-3 overflow-hidden">
+        <div className="flex gap-2">
+          <Textarea
+            ref={textareaRef}
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            onKeyDown={handleKeyDown}
+            placeholder={activeMaterial ? `Ask about "${activeMaterial.title}"...` : "Ask a question..."}
+            className="min-h-[44px] max-h-32 resize-none"
+            rows={1}
+          />
+          <Button onClick={send} disabled={isLoading || !input.trim()} size="icon" className="h-11 w-11 shrink-0 rounded-xl">
+            <Send className="h-4 w-4" />
+          </Button>
         </div>
-      )}
+        {showMobileHelper && (
+          <p className="text-xs text-muted-foreground mt-2 text-center">
+            💡 On mobile: Enter creates new line • Tap send button to submit
+          </p>
+        )}
+      </div>
     </div>
   );
 }
