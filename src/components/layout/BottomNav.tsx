@@ -6,6 +6,7 @@ const navItems = [
   { to: "/materials", icon: Upload, label: "Materials" },
   { to: "/ai-tutor", icon: Bot, label: "AI Tutor" },
   { to: "/quizzes", icon: Trophy, label: "Quizzes" },
+  { to: "/notes", icon: BookOpen, label: "Notes" },
   { to: "/profile", icon: User, label: "Profile" },
 ];
 
