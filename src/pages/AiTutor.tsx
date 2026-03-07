@@ -423,7 +423,7 @@ export default function AiTutor() {
             {showMobileHelper && (
               <p className="text-xs text-muted-foreground mt-2 text-center">
                 💡 On mobile: Enter creates new line • Tap send button to submit
-              </p>
+              </p>  
             )}
           </div>
         </div>
@@ -471,7 +471,7 @@ export default function AiTutor() {
             </Select>
             {activeMaterial && (
               <p className="text-xs text-primary mt-1">
-                � Using: {activeMaterial.title} — AI will answer based on this material
+                📚 Using: {activeMaterial.title} — AI will answer based on this material
               </p>
             )}
           </div>
