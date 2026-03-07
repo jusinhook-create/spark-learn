@@ -238,13 +238,9 @@ export default function QuizDetail() {
                 <Button variant="outline" className="flex-1" onClick={() => navigate("/quizzes")}>
                   Back to Quizzes
                 </Button>
-                <Button className="flex-1" onClick={() => {
-                  setCurrentQ(0);
-                  setAnswers(new Array(questions.length).fill(null));
-                  setFinished(false);
-                  setTimeLeft(quiz.time_limit_seconds || 300);
-                }}>
-                  Retry
+                <Button className="flex-1" onClick={handleRegenerate} disabled={isRegenerating}>
+                  {isRegenerating ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : null}
+                  {isRegenerating ? "Generating..." : "New Quiz 🔄"}
                 </Button>
               </div>
             </div>
