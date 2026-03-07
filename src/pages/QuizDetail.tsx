@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Trophy, Clock, ArrowLeft, CheckCircle, XCircle, Coins, Loader2, Share2, ChevronLeft, ChevronRight } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
-import { useQuery, useMutation } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 
 export default function QuizDetail() {
@@ -14,11 +14,13 @@ export default function QuizDetail() {
   const { user } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
+  const queryClient = useQueryClient();
 
   const [currentQ, setCurrentQ] = useState(0);
   const [answers, setAnswers] = useState<(number | null)[]>([]);
   const [finished, setFinished] = useState(false);
   const [timeLeft, setTimeLeft] = useState(0);
+  const [isRegenerating, setIsRegenerating] = useState(false);
 
   const { data: quiz, isLoading: quizLoading } = useQuery({
     queryKey: ["quiz", id],
@@ -125,6 +127,41 @@ export default function QuizDetail() {
     submitAttempt.mutate(score);
   };
 
+  const handleRegenerate = async () => {
+    if (!quiz || !user) return;
+    setIsRegenerating(true);
+    try {
+      const { data: materials } = await supabase
+        .from("study_materials")
+        .select("id")
+        .eq("user_id", user.id)
+        .eq("subject", quiz.subject || "")
+        .limit(1);
+
+      const materialId = materials?.[0]?.id;
+      if (!materialId) {
+        toast({ title: "No matching material found", description: "Upload the material again to regenerate.", variant: "destructive" });
+        setIsRegenerating(false);
+        return;
+      }
+
+      const resp = await supabase.functions.invoke("generate-quiz", {
+        body: { material_id: materialId, num_questions: questions?.length || 20 },
+      });
+      if (resp.error) throw new Error(resp.error.message);
+      if (resp.data?.error) throw new Error(resp.data.error);
+
+      const newQuiz = resp.data.quiz;
+      toast({ title: "New quiz generated! 🎉" });
+      queryClient.invalidateQueries({ queryKey: ["quizzes"] });
+      navigate(`/quizzes/${newQuiz.id}`, { replace: true });
+    } catch (e: any) {
+      toast({ title: "Regeneration failed", description: e.message, variant: "destructive" });
+    } finally {
+      setIsRegenerating(false);
+    }
+  };
+
   const handleShareStreak = async () => {
     const totalQ = questions?.length || 0;
     const pct = Math.round((score / totalQ) * 100);
@@ -201,13 +238,9 @@ export default function QuizDetail() {
                 <Button variant="outline" className="flex-1" onClick={() => navigate("/quizzes")}>
                   Back to Quizzes
                 </Button>
-                <Button className="flex-1" onClick={() => {
-                  setCurrentQ(0);
-                  setAnswers(new Array(questions.length).fill(null));
-                  setFinished(false);
-                  setTimeLeft(quiz.time_limit_seconds || 300);
-                }}>
-                  Retry
+                <Button className="flex-1" onClick={handleRegenerate} disabled={isRegenerating}>
+                  {isRegenerating ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : null}
+                  {isRegenerating ? "Generating..." : "New Quiz 🔄"}
                 </Button>
               </div>
             </div>

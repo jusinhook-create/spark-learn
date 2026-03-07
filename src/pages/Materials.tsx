@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useCallback } from "react";
 import { useAuth } from "@/lib/auth";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -20,6 +20,7 @@ export default function Materials() {
   const [subject, setSubject] = useState("");
   const [textContent, setTextContent] = useState("");
   const [isUploading, setIsUploading] = useState(false);
+  const [quizCountMap, setQuizCountMap] = useState<Record<string, number>>({});
 
   const { data: materials, isLoading } = useQuery({
     queryKey: ["study-materials", user?.id],
@@ -127,9 +128,9 @@ export default function Materials() {
   });
 
   const generateQuiz = useMutation({
-    mutationFn: async (materialId: string) => {
+    mutationFn: async ({ materialId, numQuestions }: { materialId: string; numQuestions: number }) => {
       const resp = await supabase.functions.invoke("generate-quiz", {
-        body: { material_id: materialId, num_questions: 60 },
+        body: { material_id: materialId, num_questions: numQuestions },
       });
       if (resp.error) throw new Error(resp.error.message);
       if (resp.data?.error) throw new Error(resp.data.error);
@@ -280,16 +281,27 @@ export default function Materials() {
                         <Bot className="h-3 w-3" /> Ask AI Tutor
                       </Button>
                     </Link>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="gap-1 text-xs"
-                      onClick={() => generateQuiz.mutate(mat.id)}
-                      disabled={generateQuiz.isPending}
-                    >
-                      {generateQuiz.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : <Trophy className="h-3 w-3" />}
-                      Generate Quiz
-                    </Button>
+                    <div className="flex items-center gap-1">
+                      <select
+                        className="h-8 text-xs rounded-md border border-input bg-background px-2"
+                        value={quizCountMap[mat.id] || 20}
+                        onChange={(e) => setQuizCountMap(prev => ({ ...prev, [mat.id]: Number(e.target.value) }))}
+                      >
+                        {[10, 20, 30, 40, 50, 60].map(n => (
+                          <option key={n} value={n}>{n} Qs</option>
+                        ))}
+                      </select>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="gap-1 text-xs"
+                        onClick={() => generateQuiz.mutate({ materialId: mat.id, numQuestions: quizCountMap[mat.id] || 20 })}
+                        disabled={generateQuiz.isPending}
+                      >
+                        {generateQuiz.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : <Trophy className="h-3 w-3" />}
+                        Generate Quiz
+                      </Button>
+                    </div>
                     <Button
                       size="sm"
                       variant="outline"
