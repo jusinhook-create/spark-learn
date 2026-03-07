@@ -127,6 +127,41 @@ export default function QuizDetail() {
     submitAttempt.mutate(score);
   };
 
+  const handleRegenerate = async () => {
+    if (!quiz || !user) return;
+    setIsRegenerating(true);
+    try {
+      const { data: materials } = await supabase
+        .from("study_materials")
+        .select("id")
+        .eq("user_id", user.id)
+        .eq("subject", quiz.subject || "")
+        .limit(1);
+
+      const materialId = materials?.[0]?.id;
+      if (!materialId) {
+        toast({ title: "No matching material found", description: "Upload the material again to regenerate.", variant: "destructive" });
+        setIsRegenerating(false);
+        return;
+      }
+
+      const resp = await supabase.functions.invoke("generate-quiz", {
+        body: { material_id: materialId, num_questions: questions?.length || 20 },
+      });
+      if (resp.error) throw new Error(resp.error.message);
+      if (resp.data?.error) throw new Error(resp.data.error);
+
+      const newQuiz = resp.data.quiz;
+      toast({ title: "New quiz generated! 🎉" });
+      queryClient.invalidateQueries({ queryKey: ["quizzes"] });
+      navigate(`/quizzes/${newQuiz.id}`, { replace: true });
+    } catch (e: any) {
+      toast({ title: "Regeneration failed", description: e.message, variant: "destructive" });
+    } finally {
+      setIsRegenerating(false);
+    }
+  };
+
   const handleShareStreak = async () => {
     const totalQ = questions?.length || 0;
     const pct = Math.round((score / totalQ) * 100);
