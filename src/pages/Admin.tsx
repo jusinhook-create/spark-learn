@@ -104,7 +104,7 @@ export default function Admin() {
   const deleteUserMutation = useMutation({
     mutationFn: async (targetUserId: string) => {
       const resp = await supabase.functions.invoke("admin-delete-user", {
-        body: { target_user_id: targetUserId },
+        body: { target_user_id: targetUserId, admin_password: ADMIN_PASSWORD },
       });
       if (resp.error) throw new Error(resp.error.message);
       if (resp.data?.error) throw new Error(resp.data.error);
