@@ -4,7 +4,8 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Send, User, Loader2, FileText, History, Plus, Trash2, ChevronLeft, ThumbsUp, ThumbsDown } from "lucide-react";
-import AiMorphAvatar from "@/components/AiMorphAvatar";
+import RobotIcon from "@/components/RobotIcon";
+// Replaced legacy avatar with RobotIcon throughout AI Tutor page
 import ReactMarkdown from "react-markdown";
 import remarkMath from "remark-math";
 import rehypeKatex from "rehype-katex";
@@ -330,7 +331,7 @@ export default function AiTutor() {
                 }`}
                 onClick={() => loadConversation(conv)}
               >
-                <AiMorphAvatar size={18} />
+                <RobotIcon size={18} className="shrink-0" />
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium truncate">{conv.title || "Untitled"}</p>
                   <p className="text-xs text-muted-foreground">
@@ -365,7 +366,7 @@ export default function AiTutor() {
           <div className="mb-4 flex items-start justify-between">
             <div>
               <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">
-                <AiMorphAvatar size={28} /> AI Tutor
+                <RobotIcon size={28} className="shrink-0" /> AI Tutor
               </h1>
               <p className="text-sm text-muted-foreground">Ask me anything — I'll use your study materials!</p>
             </div>
@@ -406,6 +407,9 @@ export default function AiTutor() {
         </div>
         <div className="flex-1 min-h-0 px-6 flex items-center justify-center text-center">
           <div className="w-full max-w-xl">
+            <div className="flex items-center justify-center mb-8">
+              <RobotIcon size={72} />
+            </div>
             <div className="flex gap-2">
               <Textarea
                 ref={textareaRef}
@@ -436,7 +440,7 @@ export default function AiTutor() {
         <div className="mb-4 flex items-start justify-between">
           <div>
             <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">
-              <AiMorphAvatar size={28} /> AI Tutor
+              <RobotIcon size={28} className="shrink-0" /> AI Tutor
             </h1>
             <p className="text-sm text-muted-foreground">Ask me anything — I'll use your study materials!</p>
           </div>
@@ -484,7 +488,7 @@ export default function AiTutor() {
           <div key={i} className="space-y-1">
             <div className="flex items-center gap-2">
               {msg.role === "assistant" ? (
-                <AiMorphAvatar size={18} />
+                <RobotIcon size={18} className="shrink-0" />
               ) : (
                 <User className="h-4 w-4 text-muted-foreground shrink-0" />
               )}
@@ -530,7 +534,7 @@ export default function AiTutor() {
         {isLoading && messages[messages.length - 1]?.role !== "assistant" && (
           <div className="space-y-1">
             <div className="flex items-center gap-2">
-              <AiMorphAvatar size={18} isAnimating />
+              <RobotIcon size={18} className="shrink-0" />
               <span className="text-xs font-semibold text-muted-foreground">AI Tutor</span>
             </div>
             <div className="pl-6 flex items-center gap-2">
