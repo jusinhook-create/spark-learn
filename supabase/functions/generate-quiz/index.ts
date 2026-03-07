@@ -21,7 +21,7 @@ serve(async (req) => {
     if (!user) throw new Error("Unauthorized");
 
     const { material_id, num_questions } = await req.json();
-    const count = Math.min(num_questions || 60, 60);
+    const count = Math.min(num_questions || 60, 100);
 
     const { data: material, error: matErr } = await supabase
       .from("study_materials")
