@@ -1,0 +1,554 @@
+import { useState, useRef, useEffect } from "react";
+import { useAuth } from "@/lib/auth";
+import { Card, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { MessageSquare, Send, Plus, Image, Flame, Loader2, ArrowLeft, Search, Copy, UserPlus, X, Trash2, Pencil, Reply, Share2, Forward } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useToast } from "@/hooks/use-toast";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+
+type ForumMessage = {
+  id: string;
+  forum_id: string;
+  user_id: string;
+  content: string | null;
+  image_url: string | null;
+  message_type: string;
+  streak_data: any;
+  created_at: string;
+  profile?: { display_name: string | null; avatar_url: string | null };
+};
+
+export default function Forums() {
+  const { user } = useAuth();
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const [activeForum, setActiveForum] = useState<any>(null);
+  const [message, setMessage] = useState("");
+  const [showCreate, setShowCreate] = useState(false);
+  const [showJoin, setShowJoin] = useState(false);
+  const [newTitle, setNewTitle] = useState("");
+  const [newDesc, setNewDesc] = useState("");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [inviteCode, setInviteCode] = useState("");
+  const [isUploadingImage, setIsUploadingImage] = useState(false);
+  const [previewImage, setPreviewImage] = useState<string | null>(null);
+  const [editingMsg, setEditingMsg] = useState<ForumMessage | null>(null);
+  const [replyingTo, setReplyingTo] = useState<ForumMessage | null>(null);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const { data: forums, isLoading: forumsLoading } = useQuery({
+    queryKey: ["forums"],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("forums")
+        .select("*")
+        .order("created_at", { ascending: false });
+      return data;
+    },
+  });
+
+  const filteredForums = forums?.filter((f) =>
+    f.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    f.description?.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
+  const { data: forumMessages, isLoading: msgsLoading } = useQuery({
+    queryKey: ["forum-messages", activeForum?.id],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("forum_messages")
+        .select("*")
+        .eq("forum_id", activeForum!.id)
+        .order("created_at", { ascending: true });
+
+      if (data && data.length > 0) {
+        const userIds = [...new Set(data.map((m) => m.user_id))];
+        const { data: profiles } = await supabase
+          .from("profiles")
+          .select("user_id, display_name, avatar_url")
+          .in("user_id", userIds);
+
+        return data.map((m) => ({
+          ...m,
+          profile: profiles?.find((p) => p.user_id === m.user_id),
+        }));
+      }
+      return data || [];
+    },
+    enabled: !!activeForum,
+    refetchInterval: 3000,
+  });
+
+  useEffect(() => {
+    if (!activeForum) return;
+    const channel = supabase
+      .channel(`forum-${activeForum.id}`)
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "forum_messages", filter: `forum_id=eq.${activeForum.id}` }, () => {
+        queryClient.invalidateQueries({ queryKey: ["forum-messages", activeForum.id] });
+      })
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, [activeForum?.id]);
+
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [forumMessages]);
+
+  const createForum = useMutation({
+    mutationFn: async () => {
+      const { data, error } = await supabase.from("forums").insert({
+        title: newTitle,
+        description: newDesc || null,
+        created_by: user!.id,
+        is_public: true,
+      }).select().single();
+      if (error) throw error;
+      await supabase.from("group_members").insert({ forum_id: data.id, user_id: user!.id, role: "admin" });
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["forums"] });
+      setShowCreate(false);
+      setNewTitle("");
+      setNewDesc("");
+      toast({ title: "Group created!" });
+    },
+  });
+
+  const joinByInvite = useMutation({
+    mutationFn: async () => {
+      const { data: forum, error } = await supabase
+        .from("forums")
+        .select("id, title")
+        .eq("invite_code", inviteCode.trim())
+        .single();
+      if (error || !forum) throw new Error("Invalid invite code");
+      
+      const { error: joinErr } = await supabase.from("group_members").insert({
+        forum_id: forum.id,
+        user_id: user!.id,
+      });
+      if (joinErr) {
+        if (joinErr.code === "23505") throw new Error("You're already in this group");
+        throw joinErr;
+      }
+      return forum;
+    },
+    onSuccess: (forum) => {
+      queryClient.invalidateQueries({ queryKey: ["forums"] });
+      setShowJoin(false);
+      setInviteCode("");
+      toast({ title: "Joined!", description: `You joined "${forum.title}"` });
+    },
+    onError: (e: any) => {
+      toast({ title: "Failed", description: e.message, variant: "destructive" });
+    },
+  });
+
+  const joinGroup = async (forumId: string) => {
+    const { error } = await supabase.from("group_members").insert({
+      forum_id: forumId,
+      user_id: user!.id,
+    });
+    if (error) {
+      if (error.code === "23505") {
+        // Already joined, silently continue
+      } else {
+        toast({ title: "Error", description: error.message, variant: "destructive" });
+      }
+    }
+  };
+
+  const copyInviteCode = (code: string) => {
+    navigator.clipboard.writeText(code);
+    toast({ title: "Copied!", description: "Invite code copied to clipboard" });
+  };
+
+  const sendMessage = async () => {
+    if (!message.trim() || !activeForum || !user) return;
+
+    if (editingMsg) {
+      const { error } = await supabase.from("forum_messages").update({ content: message.trim() }).eq("id", editingMsg.id);
+      if (error) {
+        toast({ title: "Error", description: error.message, variant: "destructive" });
+      } else {
+        setEditingMsg(null);
+        setMessage("");
+        queryClient.invalidateQueries({ queryKey: ["forum-messages", activeForum.id] });
+      }
+      return;
+    }
+
+    const content = replyingTo
+      ? `> ${replyingTo.profile?.display_name || "User"}: ${replyingTo.content?.slice(0, 60) || "image"}\n\n${message.trim()}`
+      : message.trim();
+
+    const { error } = await supabase.from("forum_messages").insert({
+      forum_id: activeForum.id,
+      user_id: user.id,
+      content,
+      message_type: "text",
+    });
+    if (error) {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    } else {
+      setMessage("");
+      setReplyingTo(null);
+    }
+  };
+
+  const deleteMessage = async (msgId: string) => {
+    await supabase.from("forum_messages").delete().eq("id", msgId);
+    queryClient.invalidateQueries({ queryKey: ["forum-messages", activeForum?.id] });
+    toast({ title: "Delete successful ✅" });
+  };
+
+  const shareMessage = (msg: ForumMessage) => {
+    const text = msg.content || msg.image_url || "";
+    if (navigator.share) {
+      navigator.share({ text });
+    } else {
+      navigator.clipboard.writeText(text);
+      toast({ title: "Copied to clipboard!" });
+    }
+  };
+
+  const compressImage = (file: File, maxWidth = 1200, quality = 0.7): Promise<Blob> => {
+    return new Promise((resolve) => {
+      const img = new window.Image();
+      img.onload = () => {
+        const canvas = document.createElement("canvas");
+        let { width, height } = img;
+        if (width > maxWidth) {
+          height = (height * maxWidth) / width;
+          width = maxWidth;
+        }
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext("2d")!;
+        ctx.drawImage(img, 0, 0, width, height);
+        canvas.toBlob((blob) => resolve(blob || file), "image/jpeg", quality);
+      };
+      img.src = URL.createObjectURL(file);
+    });
+  };
+
+  const sendImage = async (file: File) => {
+    if (!activeForum || !user) return;
+    setIsUploadingImage(true);
+    try {
+      const compressed = await compressImage(file);
+      const filePath = `${user.id}/${Date.now()}.jpg`;
+      const { error: uploadErr } = await supabase.storage.from("forum-images").upload(filePath, compressed, { contentType: "image/jpeg" });
+      if (uploadErr) throw uploadErr;
+      const { data: urlData } = supabase.storage.from("forum-images").getPublicUrl(filePath);
+      await supabase.from("forum_messages").insert({
+        forum_id: activeForum.id,
+        user_id: user.id,
+        image_url: urlData.publicUrl,
+        message_type: "image",
+      });
+    } catch (e: any) {
+      toast({ title: "Upload failed", description: e.message, variant: "destructive" });
+    } finally {
+      setIsUploadingImage(false);
+    }
+  };
+
+  const shareStreak = async () => {
+    if (!activeForum || !user) return;
+    const { data: streak } = await supabase.from("streaks").select("*").eq("user_id", user.id).single();
+    const { data: profile } = await supabase.from("profiles").select("display_name").eq("user_id", user.id).single();
+    await supabase.from("forum_messages").insert({
+      forum_id: activeForum.id,
+      user_id: user.id,
+      message_type: "streak",
+      streak_data: {
+        current_streak: streak?.current_streak || 0,
+        longest_streak: streak?.longest_streak || 0,
+        display_name: profile?.display_name || "Learner",
+      },
+    });
+  };
+
+  // Chat view
+  if (activeForum) {
+    return (
+      <div className="flex flex-col h-[calc(100vh-8rem)] md:h-[calc(100vh-3rem)]">
+        <div className="flex items-center gap-3 mb-3 pb-3 border-b">
+          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setActiveForum(null)}>
+            <ArrowLeft className="h-4 w-4" />
+          </Button>
+          <div className="flex-1">
+            <p className="font-semibold text-sm">{activeForum.title}</p>
+            <p className="text-xs text-muted-foreground">{activeForum.description}</p>
+          </div>
+          {activeForum.invite_code && (
+            <Button variant="ghost" size="sm" className="gap-1 text-xs" onClick={() => copyInviteCode(activeForum.invite_code)}>
+              <Copy className="h-3 w-3" /> Invite
+            </Button>
+          )}
+        </div>
+
+        <div className="flex-1 overflow-y-auto space-y-3 px-1">
+          {forumMessages?.map((msg: ForumMessage) => {
+            const isMe = msg.user_id === user?.id;
+            return (
+              <div key={msg.id} className={`flex ${isMe ? "justify-end" : "justify-start"}`}>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <div className="max-w-[80%] cursor-pointer">
+                      {!isMe && (
+                        <p className="text-[10px] font-medium text-muted-foreground mb-0.5 px-1">
+                          {msg.profile?.display_name || "User"}
+                        </p>
+                      )}
+                      {msg.message_type === "streak" ? (
+                        <div className="bg-gradient-to-r from-destructive/10 to-warning/10 border border-destructive/20 rounded-2xl px-4 py-3">
+                          <div className="flex items-center gap-2">
+                            <Flame className="h-5 w-5 text-destructive" />
+                            <div>
+                              <p className="text-xs font-semibold">{msg.streak_data?.display_name}'s Streak</p>
+                              <p className="text-lg font-bold text-destructive">{msg.streak_data?.current_streak} days 🔥</p>
+                              <p className="text-[10px] text-muted-foreground">Best: {msg.streak_data?.longest_streak} days</p>
+                            </div>
+                          </div>
+                        </div>
+                      ) : msg.message_type === "image" ? (
+                        <img
+                          src={msg.image_url!}
+                          alt="Shared"
+                          className="rounded-2xl max-w-full max-h-60 object-cover hover:opacity-90 transition-opacity"
+                          onClick={(e) => { e.stopPropagation(); setPreviewImage(msg.image_url!); }}
+                        />
+                      ) : (
+                        <div className={`rounded-2xl px-4 py-2 text-sm ${isMe ? "bg-primary text-primary-foreground" : "bg-secondary"}`}>
+                          {msg.content?.split("\n").map((line, li) => (
+                            <span key={li} className={line.startsWith(">") ? "text-xs opacity-70 italic block mb-1" : ""}>
+                              {line}
+                              {li < (msg.content?.split("\n").length ?? 0) - 1 && <br />}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                      <p className="text-[10px] text-muted-foreground mt-0.5 px-1">
+                        {new Date(msg.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                      </p>
+                    </div>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align={isMe ? "end" : "start"}>
+                    <DropdownMenuItem onClick={() => { setReplyingTo(msg); }}>
+                      <Reply className="h-3.5 w-3.5 mr-2" /> Reply
+                    </DropdownMenuItem>
+                    {msg.content && (
+                      <DropdownMenuItem onClick={() => { navigator.clipboard.writeText(msg.content!); toast({ title: "Copied!" }); }}>
+                        <Copy className="h-3.5 w-3.5 mr-2" /> Copy
+                      </DropdownMenuItem>
+                    )}
+                    <DropdownMenuItem onClick={() => shareMessage(msg)}>
+                      <Share2 className="h-3.5 w-3.5 mr-2" /> Share
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => { setReplyingTo(msg); toast({ title: "Forward: select a chat and paste" }); }}>
+                      <Forward className="h-3.5 w-3.5 mr-2" /> Forward
+                    </DropdownMenuItem>
+                    {isMe && msg.message_type === "text" && (
+                      <DropdownMenuItem onClick={() => { setEditingMsg(msg); setMessage(msg.content || ""); }}>
+                        <Pencil className="h-3.5 w-3.5 mr-2" /> Edit
+                      </DropdownMenuItem>
+                    )}
+                    {isMe && (
+                      <DropdownMenuItem className="text-destructive" onClick={() => deleteMessage(msg.id)}>
+                        <Trash2 className="h-3.5 w-3.5 mr-2" /> Delete
+                      </DropdownMenuItem>
+                    )}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </div>
+            );
+          })}
+          <div ref={messagesEndRef} />
+        </div>
+
+        {/* Reply/Edit indicator */}
+        {(replyingTo || editingMsg) && (
+          <div className="mt-2 flex items-center gap-2 px-3 py-2 bg-secondary rounded-lg text-xs">
+            <span className="flex-1 truncate">
+              {editingMsg ? "✏️ Editing message" : `↩️ Replying to ${replyingTo?.profile?.display_name || "User"}`}
+            </span>
+            <Button variant="ghost" size="icon" className="h-5 w-5" onClick={() => { setReplyingTo(null); setEditingMsg(null); setMessage(""); }}>
+              <X className="h-3 w-3" />
+            </Button>
+          </div>
+        )}
+
+        <div className="mt-2 flex gap-2 items-end">
+          <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) sendImage(f); e.target.value = ""; }} />
+          <Button variant="ghost" size="icon" className="h-10 w-10 shrink-0" onClick={() => fileInputRef.current?.click()} disabled={isUploadingImage}>
+            {isUploadingImage ? <Loader2 className="h-4 w-4 animate-spin" /> : <Image className="h-4 w-4" />}
+          </Button>
+          <Button variant="ghost" size="icon" className="h-10 w-10 shrink-0" onClick={shareStreak}>
+            <Flame className="h-4 w-4 text-destructive" />
+          </Button>
+          <Input
+            value={message}
+            onChange={(e) => setMessage(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); sendMessage(); } }}
+            placeholder={editingMsg ? "Edit message..." : replyingTo ? "Reply..." : "Type a message..."}
+            className="flex-1"
+          />
+          <Button size="icon" className="h-10 w-10 shrink-0 rounded-xl" onClick={sendMessage} disabled={!message.trim()}>
+            <Send className="h-4 w-4" />
+          </Button>
+        </div>
+
+        {/* WhatsApp-style image preview */}
+        {previewImage && (
+          <div
+            className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center"
+            onClick={() => setPreviewImage(null)}
+          >
+            <Button
+              variant="ghost"
+              size="icon"
+              className="absolute top-4 right-4 text-white hover:bg-white/20 z-10"
+              onClick={() => setPreviewImage(null)}
+            >
+              <X className="h-6 w-6" />
+            </Button>
+            <img
+              src={previewImage}
+              alt="Preview"
+              className="max-w-[95vw] max-h-[90vh] object-contain rounded-lg"
+              onClick={(e) => e.stopPropagation()}
+            />
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // Forum list view
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">
+            <MessageSquare className="h-6 w-6 text-primary" /> Community Chat
+          </h1>
+          <p className="text-sm text-muted-foreground">Chat with fellow learners</p>
+        </div>
+        <div className="flex gap-2">
+          <Button size="sm" variant="outline" className="gap-1" onClick={() => setShowJoin(true)}>
+            <UserPlus className="h-4 w-4" /> Join
+          </Button>
+          <Button size="sm" className="gap-1" onClick={() => setShowCreate(true)}>
+            <Plus className="h-4 w-4" /> New
+          </Button>
+        </div>
+      </div>
+
+      {/* Search */}
+      <div className="relative">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+        <Input
+          placeholder="Search groups..."
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          className="pl-9"
+        />
+      </div>
+
+      {forumsLoading ? (
+        <div className="space-y-3">
+          {[1, 2, 3].map((i) => (
+            <Card key={i} className="border-0 shadow-sm animate-pulse">
+              <CardContent className="p-4 h-16" />
+            </Card>
+          ))}
+        </div>
+      ) : filteredForums && filteredForums.length > 0 ? (
+        <div className="space-y-2">
+          {filteredForums.map((forum) => (
+            <Card
+              key={forum.id}
+              className="border-0 shadow-sm hover:shadow-md transition-shadow cursor-pointer"
+              onClick={() => { joinGroup(forum.id); setActiveForum(forum); }}
+            >
+              <CardContent className="p-4 flex items-center gap-3">
+                <div className="flex h-11 w-11 items-center justify-center rounded-full bg-primary/10 shrink-0">
+                  <MessageSquare className="h-5 w-5 text-primary" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="font-semibold text-sm">{forum.title}</p>
+                  <p className="text-xs text-muted-foreground truncate">{forum.description || "Tap to chat"}</p>
+                </div>
+                {forum.created_by === user?.id && (
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8 shrink-0 text-muted-foreground hover:text-destructive"
+                    onClick={async (e) => {
+                      e.stopPropagation();
+                      if (!confirm("Delete this group? All messages will be lost.")) return;
+                      const { error } = await supabase.from("forums").delete().eq("id", forum.id);
+                      if (error) {
+                        toast({ title: "Error", description: error.message, variant: "destructive" });
+                      } else {
+                        queryClient.invalidateQueries({ queryKey: ["forums"] });
+                        toast({ title: "Group deleted" });
+                      }
+                    }}
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                )}
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      ) : (
+        <Card className="border-0 shadow-sm">
+          <CardContent className="flex flex-col items-center justify-center py-12 text-center">
+            <MessageSquare className="h-12 w-12 text-muted-foreground/30 mb-3" />
+            <p className="font-semibold">{searchQuery ? "No groups found" : "No groups yet"}</p>
+            <p className="text-sm text-muted-foreground">{searchQuery ? "Try a different search" : "Create the first group to start chatting!"}</p>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Create Dialog */}
+      <Dialog open={showCreate} onOpenChange={setShowCreate}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>Create Group Chat</DialogTitle></DialogHeader>
+          <div className="space-y-3">
+            <Input placeholder="Group name" value={newTitle} onChange={(e) => setNewTitle(e.target.value)} />
+            <Input placeholder="Description (optional)" value={newDesc} onChange={(e) => setNewDesc(e.target.value)} />
+            <Button className="w-full" onClick={() => createForum.mutate()} disabled={!newTitle.trim() || createForum.isPending}>
+              {createForum.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+              Create Group
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Join by Invite Dialog */}
+      <Dialog open={showJoin} onOpenChange={setShowJoin}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>Join Group by Invite Code</DialogTitle></DialogHeader>
+          <div className="space-y-3">
+            <Input placeholder="Enter invite code..." value={inviteCode} onChange={(e) => setInviteCode(e.target.value)} />
+            <Button className="w-full" onClick={() => joinByInvite.mutate()} disabled={!inviteCode.trim() || joinByInvite.isPending}>
+              {joinByInvite.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+              Join Group
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
