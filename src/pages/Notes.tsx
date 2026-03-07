@@ -7,6 +7,9 @@ import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import ReactMarkdown from "react-markdown";
+import remarkMath from "remark-math";
+import rehypeKatex from "rehype-katex";
+import "katex/dist/katex.min.css";
 import { useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
@@ -99,7 +102,7 @@ export default function Notes() {
             <DialogTitle>{viewNote?.title}</DialogTitle>
           </DialogHeader>
           <div className="prose prose-sm max-w-none dark:prose-invert">
-            <ReactMarkdown>{viewNote?.content || ""}</ReactMarkdown>
+            <ReactMarkdown remarkPlugins={[remarkMath]} rehypePlugins={[rehypeKatex]}>{viewNote?.content || ""}</ReactMarkdown>
           </div>
         </DialogContent>
       </Dialog>

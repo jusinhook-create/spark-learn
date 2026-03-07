@@ -47,7 +47,7 @@ serve(async (req) => {
         messages: [
           {
             role: "system",
-            content: `Create comprehensive, well-structured study notes from the provided material. Use markdown formatting with headers, bullet points, bold key terms, and organized sections. Make it easy to review and study from.`,
+            content: `Create comprehensive, well-structured study notes from the provided material. Use markdown formatting with headers, bullet points, bold key terms, and organized sections. Make it easy to review and study from. IMPORTANT: For ALL mathematical formulas, equations, expressions, and calculations, you MUST use LaTeX notation wrapped in dollar signs. Use single dollar signs $...$ for inline math and double dollar signs $$...$$ for display/block math equations. For example: inline like $x^2 + y^2 = z^2$ or block like $$\\int_0^\\infty e^{-x^2} dx = \\frac{\\sqrt{\\pi}}{2}$$. Never write math formulas as plain text.`,
           },
           {
             role: "user",
