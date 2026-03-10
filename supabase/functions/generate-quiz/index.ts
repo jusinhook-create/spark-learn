@@ -162,7 +162,7 @@ IMPORTANT RULES FOR VARIETY:
       created_by: user.id,
       is_published: true,
       coins_reward: Math.max(10, count),
-      time_limit_seconds: 1800, // 30 minutes
+      time_limit_seconds: timeLimitSeconds,
     }).select().single();
 
     if (quizErr) throw quizErr;
