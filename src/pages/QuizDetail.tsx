@@ -246,6 +246,62 @@ export default function QuizDetail() {
             </div>
           </CardContent>
         </Card>
+
+        {/* Corrections Review */}
+        <div>
+          <h2 className="text-lg font-semibold mb-3">📝 Review Corrections</h2>
+          <div className="space-y-3">
+            {questions.map((q, i) => {
+              const userAnswer = answers[i];
+              const correctIndex = q.correct_answer_index;
+              const isCorrect = userAnswer === correctIndex;
+              const opts = (q.options as string[]) || [];
+
+              return (
+                <Card key={q.id} className={`border-0 shadow-sm ${isCorrect ? 'ring-1 ring-green-500/30' : 'ring-1 ring-destructive/30'}`}>
+                  <CardContent className="p-4">
+                    <div className="flex items-start gap-2 mb-3">
+                      {isCorrect ? (
+                        <CheckCircle className="h-5 w-5 text-green-500 shrink-0 mt-0.5" />
+                      ) : (
+                        <XCircle className="h-5 w-5 text-destructive shrink-0 mt-0.5" />
+                      )}
+                      <p className="font-medium text-sm">
+                        <span className="text-muted-foreground mr-1">Q{i + 1}.</span>
+                        {q.question_text}
+                      </p>
+                    </div>
+                    <div className="space-y-1.5 ml-7">
+                      {opts.map((opt, j) => {
+                        const isUserChoice = userAnswer === j;
+                        const isRightAnswer = correctIndex === j;
+                        let className = "text-xs px-3 py-2 rounded-md border ";
+                        if (isRightAnswer) {
+                          className += "bg-green-500/10 border-green-500/40 text-green-700 dark:text-green-400 font-semibold";
+                        } else if (isUserChoice && !isRightAnswer) {
+                          className += "bg-destructive/10 border-destructive/40 text-destructive line-through";
+                        } else {
+                          className += "bg-secondary/50 border-transparent text-muted-foreground";
+                        }
+                        return (
+                          <div key={j} className={className}>
+                            <span className="font-bold mr-1">{String.fromCharCode(65 + j)}.</span>
+                            {opt}
+                            {isRightAnswer && " ✓"}
+                            {isUserChoice && !isRightAnswer && " (your answer)"}
+                          </div>
+                        );
+                      })}
+                      {userAnswer === null && (
+                        <p className="text-xs text-muted-foreground italic">Not answered</p>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+              );
+            })}
+          </div>
+        </div>
       </div>
     );
   }
