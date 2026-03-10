@@ -23,6 +23,17 @@ serve(async (req) => {
     const { material_id, num_questions } = await req.json();
     const count = Math.min(num_questions || 60, 100);
 
+    // Time limits based on question count
+    const timeLimits: Record<number, number> = {
+      10: 300,   // 5 min
+      20: 600,   // 10 min
+      30: 900,   // 15 min
+      40: 1200,  // 20 min
+      50: 1500,  // 25 min
+      60: 1800,  // 30 min
+    };
+    const timeLimitSeconds = timeLimits[count] || Math.ceil(count * 30);
+
     const { data: material, error: matErr } = await supabase
       .from("study_materials")
       .select("*")
