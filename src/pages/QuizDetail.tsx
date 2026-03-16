@@ -328,7 +328,6 @@ export default function QuizDetail() {
       <div>
         <div className="flex items-center justify-between mb-1">
           <span className="text-xs text-muted-foreground">Question {currentQ + 1} of {questions.length}</span>
-          <span className="text-xs font-semibold text-primary">{score} correct</span>
         </div>
         <Progress value={progress} />
       </div>
