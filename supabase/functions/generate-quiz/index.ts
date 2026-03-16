@@ -20,8 +20,9 @@ serve(async (req) => {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) throw new Error("Unauthorized");
 
-    const { material_id, num_questions } = await req.json();
+    const { material_id, num_questions, difficulty } = await req.json();
     const count = Math.min(num_questions || 60, 100);
+    const difficultyLevel = ["easy", "medium", "hard"].includes(difficulty) ? difficulty : "medium";
 
     // Time limits based on question count
     const timeLimits: Record<number, number> = {
