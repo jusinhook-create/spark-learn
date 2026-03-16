@@ -20,8 +20,9 @@ serve(async (req) => {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) throw new Error("Unauthorized");
 
-    const { material_id, num_questions } = await req.json();
+    const { material_id, num_questions, difficulty } = await req.json();
     const count = Math.min(num_questions || 60, 100);
+    const difficultyLevel = ["easy", "medium", "hard"].includes(difficulty) ? difficulty : "medium";
 
     // Time limits based on question count
     const timeLimits: Record<number, number> = {
@@ -84,12 +85,14 @@ serve(async (req) => {
             role: "system" as const,
             content: `Generate exactly ${count} multiple-choice quiz questions based on the provided study material. Each question must have exactly 4 options.
 
+DIFFICULTY LEVEL: ${difficultyLevel.toUpperCase()}
+${difficultyLevel === "easy" ? "- Focus on basic recall, definitions, and straightforward facts. Keep questions simple and direct." : difficultyLevel === "hard" ? "- Focus on analysis, application, critical thinking, tricky edge cases, and questions that require deep understanding. Make wrong options very plausible." : "- Mix of recall, understanding, and some application questions. Moderate complexity."}
+
 IMPORTANT RULES FOR VARIETY:
 - Use this random seed to vary your question selection: ${seed}
 - Current timestamp: ${timestamp}
 - Cover ALL sections and topics in the material, not just the beginning
 - Mix question types: factual recall, conceptual understanding, application, analysis, and comparison
-- Vary difficulty levels: include easy, medium, and hard questions
 - Do NOT repeat similar questions — each must test a different concept or angle
 - Randomize the position of the correct answer among the 4 options
 - Include questions about details, definitions, relationships, causes/effects, and examples

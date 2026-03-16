@@ -21,6 +21,7 @@ export default function Materials() {
   const [textContent, setTextContent] = useState("");
   const [isUploading, setIsUploading] = useState(false);
   const [quizCountMap, setQuizCountMap] = useState<Record<string, number>>({});
+  const [difficultyMap, setDifficultyMap] = useState<Record<string, string>>({});
 
   const { data: materials, isLoading } = useQuery({
     queryKey: ["study-materials", user?.id],
@@ -128,9 +129,9 @@ export default function Materials() {
   });
 
   const generateQuiz = useMutation({
-    mutationFn: async ({ materialId, numQuestions }: { materialId: string; numQuestions: number }) => {
+    mutationFn: async ({ materialId, numQuestions, difficulty }: { materialId: string; numQuestions: number; difficulty: string }) => {
       const resp = await supabase.functions.invoke("generate-quiz", {
-        body: { material_id: materialId, num_questions: numQuestions },
+        body: { material_id: materialId, num_questions: numQuestions, difficulty },
       });
       if (resp.error) throw new Error(resp.error.message);
       if (resp.data?.error) throw new Error(resp.data.error);
@@ -281,7 +282,7 @@ export default function Materials() {
                         <Bot className="h-3 w-3" /> Ask AI Tutor
                       </Button>
                     </Link>
-                    <div className="flex items-center gap-1">
+                    <div className="flex items-center gap-1 flex-wrap">
                       <select
                         className="h-8 text-xs rounded-md border border-input bg-background px-2"
                         value={quizCountMap[mat.id] || 20}
@@ -291,11 +292,20 @@ export default function Materials() {
                           <option key={n} value={n}>{n} Qs</option>
                         ))}
                       </select>
+                      <select
+                        className="h-8 text-xs rounded-md border border-input bg-background px-2"
+                        value={difficultyMap[mat.id] || "medium"}
+                        onChange={(e) => setDifficultyMap(prev => ({ ...prev, [mat.id]: e.target.value }))}
+                      >
+                        <option value="easy">Easy</option>
+                        <option value="medium">Medium</option>
+                        <option value="hard">Hard</option>
+                      </select>
                       <Button
                         size="sm"
                         variant="outline"
                         className="gap-1 text-xs"
-                        onClick={() => generateQuiz.mutate({ materialId: mat.id, numQuestions: quizCountMap[mat.id] || 20 })}
+                        onClick={() => generateQuiz.mutate({ materialId: mat.id, numQuestions: quizCountMap[mat.id] || 20, difficulty: difficultyMap[mat.id] || "medium" })}
                         disabled={generateQuiz.isPending}
                       >
                         {generateQuiz.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : <Trophy className="h-3 w-3" />}
