@@ -21,6 +21,7 @@ export default function Materials() {
   const [textContent, setTextContent] = useState("");
   const [isUploading, setIsUploading] = useState(false);
   const [quizCountMap, setQuizCountMap] = useState<Record<string, number>>({});
+  const [difficultyMap, setDifficultyMap] = useState<Record<string, string>>({});
 
   const { data: materials, isLoading } = useQuery({
     queryKey: ["study-materials", user?.id],
