@@ -18,6 +18,27 @@ import { useToast } from "@/hooks/use-toast";
 type Msg = { role: "user" | "assistant"; content: string; rating?: "up" | "down" };
 
 const CHAT_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/ai-tutor`;
+const NOTIF_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-notification`;
+
+const sendCompletionNotification = async (userEmail?: string, userId?: string) => {
+  try {
+    await fetch(NOTIF_URL, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+      },
+      body: JSON.stringify({
+        userEmail,
+        userId,
+        title: "AI Tutor 🎓",
+        message: "Your AI response is ready! Tap to view.",
+      }),
+    });
+  } catch {
+    // Silently fail - notifications are non-critical
+  }
+};
 
 export default function AiTutor() {
   const { user } = useAuth();
