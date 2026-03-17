@@ -322,6 +322,7 @@ export default function AiTutor() {
 
       const finalMessages = [...newMessages, { role: "assistant" as const, content: assistantSoFar }];
       saveConversation(finalMessages);
+      sendCompletionNotification(user?.email ?? undefined, user?.id);
     } catch (e: any) {
       setMessages((prev) => [...prev, { role: "assistant", content: `Sorry, I encountered an error: ${e.message}` }]);
     } finally {
