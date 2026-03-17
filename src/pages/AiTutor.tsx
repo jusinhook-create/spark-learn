@@ -210,6 +210,7 @@ export default function AiTutor() {
         const finalMsgs: Msg[] = [...newMessages, { role: "assistant", content }];
         setMessages(finalMsgs);
         saveConversation(finalMsgs);
+        sendCompletionNotification(user?.email ?? undefined, user?.id);
       } catch (e: any) {
         setMessages((prev) => [...prev, { role: "assistant", content: `Image generation error: ${e.message}` }]);
       } finally {
