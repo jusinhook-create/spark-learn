@@ -9,9 +9,13 @@
     <script>
       window.OneSignalDeferred = window.OneSignalDeferred || [];
       OneSignalDeferred.push(async function(OneSignal) {
-        await OneSignal.init({
-          appId: "d5dcc53b-05d3-4ee6-bada-a03e4b82ddd1",
-        });
+        try {
+          await OneSignal.init({
+            appId: "d5dcc53b-05d3-4ee6-bada-a03e4b82ddd1",
+          });
+        } catch (e) {
+          console.warn("OneSignal init skipped:", e.message);
+        }
       });
     </script>
     <title>Alpha Thought</title>
