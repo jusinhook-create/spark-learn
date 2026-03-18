@@ -38,7 +38,7 @@ export function DownloadAppPopup() {
           </div>
           <DialogTitle className="text-center">Download the App</DialogTitle>
           <DialogDescription className="text-center">
-            Get the best experience with our mobile app. Download now for offline access and push notifications!
+            Get the best experience with our mobile app. Download now for offline access!
           </DialogDescription>
         </DialogHeader>
         <div className="flex flex-col gap-2 mt-2">
