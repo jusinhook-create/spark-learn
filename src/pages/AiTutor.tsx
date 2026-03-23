@@ -3,7 +3,7 @@ import { useAuth } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Send, User, Loader2, FileText, History, Plus, Trash2, ChevronLeft, ThumbsUp, ThumbsDown } from "lucide-react";
+import { Send, User, Loader2, FileText, History, Plus, Trash2, ChevronLeft, ThumbsUp, ThumbsDown, Zap, BookOpen } from "lucide-react";
 import RobotIcon from "@/components/RobotIcon";
 // Replaced legacy avatar with RobotIcon throughout AI Tutor page
 import ReactMarkdown from "react-markdown";
