@@ -122,12 +122,10 @@ ${materialContext.slice(0, 25000)}
         model: "google/gemini-2.5-flash",
         messages: [
           { role: "system", content: systemPrompt },
-          ...messages.slice(-20),
+          ...messages.slice(isQuickMode ? -10 : -20),
         ],
         stream: true,
-        reasoning: {
-          effort: "medium",
-        },
+        ...(isQuickMode ? {} : { reasoning: { effort: "medium" } }),
       }),
     });
 
