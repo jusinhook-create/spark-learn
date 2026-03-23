@@ -430,7 +430,26 @@ export default function AiTutor() {
               <p className="text-xs text-muted-foreground mt-2 text-center">
                 💡 On mobile: Enter creates new line • Tap send button to submit
               </p>  
-            )}
+          )}
+          {/* Mode selector */}
+          <div className="mb-3 flex items-center gap-2">
+            <span className="text-xs text-muted-foreground">Mode:</span>
+            <Button
+              variant={tutorMode === "quick" ? "default" : "outline"}
+              size="sm"
+              className="h-7 text-xs gap-1"
+              onClick={() => setTutorMode("quick")}
+            >
+              <Zap className="h-3 w-3" /> Quick
+            </Button>
+            <Button
+              variant={tutorMode === "deep" ? "default" : "outline"}
+              size="sm"
+              className="h-7 text-xs gap-1"
+              onClick={() => setTutorMode("deep")}
+            >
+              <BookOpen className="h-3 w-3" /> Deep Learning
+            </Button>
           </div>
         </div>
       </div>
