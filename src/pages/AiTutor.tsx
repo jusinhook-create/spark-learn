@@ -252,6 +252,7 @@ export default function AiTutor() {
         body: JSON.stringify({
           messages: apiMessages,
           materialContext: activeMaterial?.extracted_text || null,
+          mode: tutorMode,
         }),
       });
 
