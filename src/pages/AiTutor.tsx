@@ -30,6 +30,7 @@ export default function AiTutor() {
   const [selectedMaterial, setSelectedMaterial] = useState<string>(searchParams.get("material") || "");
   const [activeConversationId, setActiveConversationId] = useState<string | null>(null);
   const [showHistory, setShowHistory] = useState(false);
+  const [tutorMode, setTutorMode] = useState<"quick" | "deep">("deep");
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const { data: materials } = useQuery({
