@@ -3,7 +3,7 @@ import { useAuth } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Send, User, Loader2, FileText, History, Plus, Trash2, ChevronLeft, ThumbsUp, ThumbsDown } from "lucide-react";
+import { Send, User, Loader2, FileText, History, Plus, Trash2, ChevronLeft, ThumbsUp, ThumbsDown, Zap, BookOpen } from "lucide-react";
 import RobotIcon from "@/components/RobotIcon";
 // Replaced legacy avatar with RobotIcon throughout AI Tutor page
 import ReactMarkdown from "react-markdown";
@@ -30,6 +30,7 @@ export default function AiTutor() {
   const [selectedMaterial, setSelectedMaterial] = useState<string>(searchParams.get("material") || "");
   const [activeConversationId, setActiveConversationId] = useState<string | null>(null);
   const [showHistory, setShowHistory] = useState(false);
+  const [tutorMode, setTutorMode] = useState<"quick" | "deep">("deep");
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const { data: materials } = useQuery({
@@ -251,6 +252,7 @@ export default function AiTutor() {
         body: JSON.stringify({
           messages: apiMessages,
           materialContext: activeMaterial?.extracted_text || null,
+          mode: tutorMode,
         }),
       });
 
@@ -404,6 +406,26 @@ export default function AiTutor() {
               )}
             </div>
           )}
+          {/* Mode selector */}
+          <div className="mb-3 flex items-center gap-2">
+            <span className="text-xs text-muted-foreground">Mode:</span>
+            <Button
+              variant={tutorMode === "quick" ? "default" : "outline"}
+              size="sm"
+              className="h-7 text-xs gap-1"
+              onClick={() => setTutorMode("quick")}
+            >
+              <Zap className="h-3 w-3" /> Quick
+            </Button>
+            <Button
+              variant={tutorMode === "deep" ? "default" : "outline"}
+              size="sm"
+              className="h-7 text-xs gap-1"
+              onClick={() => setTutorMode("deep")}
+            >
+              <BookOpen className="h-3 w-3" /> Deep Learning
+            </Button>
+          </div>
         </div>
         <div className="flex-1 min-h-0 px-6 flex items-center justify-center text-center">
           <div className="w-full max-w-xl">
@@ -427,7 +449,7 @@ export default function AiTutor() {
             {showMobileHelper && (
               <p className="text-xs text-muted-foreground mt-2 text-center">
                 💡 On mobile: Enter creates new line • Tap send button to submit
-              </p>  
+              </p>
             )}
           </div>
         </div>
@@ -480,6 +502,26 @@ export default function AiTutor() {
             )}
           </div>
         )}
+        {/* Mode selector */}
+        <div className="mb-3 flex items-center gap-2">
+          <span className="text-xs text-muted-foreground">Mode:</span>
+          <Button
+            variant={tutorMode === "quick" ? "default" : "outline"}
+            size="sm"
+            className="h-7 text-xs gap-1"
+            onClick={() => setTutorMode("quick")}
+          >
+            <Zap className="h-3 w-3" /> Quick
+          </Button>
+          <Button
+            variant={tutorMode === "deep" ? "default" : "outline"}
+            size="sm"
+            className="h-7 text-xs gap-1"
+            onClick={() => setTutorMode("deep")}
+          >
+            <BookOpen className="h-3 w-3" /> Deep Learning
+          </Button>
+        </div>
       </div>
 
       {/* Messages */}
