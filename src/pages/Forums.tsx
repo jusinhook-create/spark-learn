@@ -330,7 +330,10 @@ export default function Forums() {
               <Copy className="h-3 w-3" /> Invite
             </Button>
           )}
+          <GroupSettings forum={activeForum} onLeft={() => setActiveForum(null)} />
         </div>
+
+        <PinnedMessages forumId={activeForum.id} />
 
         <div className="flex-1 overflow-y-auto space-y-3 px-1">
           {forumMessages?.map((msg: ForumMessage) => {
