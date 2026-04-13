@@ -188,6 +188,7 @@ export type Database = {
           id: string
           invite_code: string | null
           is_public: boolean
+          require_approval: boolean
           subject: string | null
           title: string
         }
@@ -198,6 +199,7 @@ export type Database = {
           id?: string
           invite_code?: string | null
           is_public?: boolean
+          require_approval?: boolean
           subject?: string | null
           title: string
         }
@@ -208,6 +210,7 @@ export type Database = {
           id?: string
           invite_code?: string | null
           is_public?: boolean
+          require_approval?: boolean
           subject?: string | null
           title?: string
         }
@@ -241,6 +244,86 @@ export type Database = {
             columns: ["forum_id"]
             isOneToOne: false
             referencedRelation: "forums"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      join_requests: {
+        Row: {
+          created_at: string
+          forum_id: string
+          id: string
+          reviewed_by: string | null
+          status: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          forum_id: string
+          id?: string
+          reviewed_by?: string | null
+          status?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          forum_id?: string
+          id?: string
+          reviewed_by?: string | null
+          status?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "join_requests_forum_id_fkey"
+            columns: ["forum_id"]
+            isOneToOne: false
+            referencedRelation: "forums"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      pinned_messages: {
+        Row: {
+          created_at: string
+          expires_at: string
+          forum_id: string
+          id: string
+          message_id: string
+          pinned_by: string
+        }
+        Insert: {
+          created_at?: string
+          expires_at: string
+          forum_id: string
+          id?: string
+          message_id: string
+          pinned_by: string
+        }
+        Update: {
+          created_at?: string
+          expires_at?: string
+          forum_id?: string
+          id?: string
+          message_id?: string
+          pinned_by?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pinned_messages_forum_id_fkey"
+            columns: ["forum_id"]
+            isOneToOne: false
+            referencedRelation: "forums"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pinned_messages_message_id_fkey"
+            columns: ["message_id"]
+            isOneToOne: true
+            referencedRelation: "forum_messages"
             referencedColumns: ["id"]
           },
         ]

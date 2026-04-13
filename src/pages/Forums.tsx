@@ -3,12 +3,16 @@ import { useAuth } from "@/lib/auth";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { MessageSquare, Send, Plus, Image, Flame, Loader2, ArrowLeft, Search, Copy, UserPlus, X, Trash2, Pencil, Reply, Share2, Forward } from "lucide-react";
+import { MessageSquare, Send, Plus, Image, Flame, Loader2, ArrowLeft, Search, Copy, UserPlus, X, Trash2, Pencil, Reply, Share2, Forward, Pin } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { GroupSettings } from "@/components/forums/GroupSettings";
+import { PinnedMessages, PinDurationMenu } from "@/components/forums/PinnedMessages";
+import { MentionInput } from "@/components/forums/MentionInput";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 
 type ForumMessage = {
   id: string;
@@ -38,6 +42,7 @@ export default function Forums() {
   const [previewImage, setPreviewImage] = useState<string | null>(null);
   const [editingMsg, setEditingMsg] = useState<ForumMessage | null>(null);
   const [replyingTo, setReplyingTo] = useState<ForumMessage | null>(null);
+  const [pinMenuMsg, setPinMenuMsg] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -150,17 +155,49 @@ export default function Forums() {
     },
   });
 
-  const joinGroup = async (forumId: string) => {
+  const joinGroup = async (forum: any) => {
+    // Check if approval is required
+    if ((forum as any).require_approval) {
+      // Check if already a member
+      const { data: existing } = await supabase
+        .from("group_members")
+        .select("id")
+        .eq("forum_id", forum.id)
+        .eq("user_id", user!.id)
+        .maybeSingle();
+      if (existing) return; // already a member
+
+      // Check if already requested
+      const { data: existingReq } = await supabase
+        .from("join_requests")
+        .select("id, status")
+        .eq("forum_id", forum.id)
+        .eq("user_id", user!.id)
+        .maybeSingle();
+      if (existingReq) {
+        if (existingReq.status === "pending") {
+          toast({ title: "Request pending", description: "Waiting for admin approval" });
+        } else if (existingReq.status === "rejected") {
+          toast({ title: "Request rejected", variant: "destructive" });
+        }
+        return;
+      }
+
+      // Create join request
+      await supabase.from("join_requests").insert({
+        forum_id: forum.id,
+        user_id: user!.id,
+      } as any);
+      toast({ title: "Request sent!", description: "Waiting for admin approval" });
+      return;
+    }
+
     const { error } = await supabase.from("group_members").insert({
-      forum_id: forumId,
+      forum_id: forum.id,
       user_id: user!.id,
     });
-    if (error) {
-      if (error.code === "23505") {
-        // Already joined, silently continue
-      } else {
-        toast({ title: "Error", description: error.message, variant: "destructive" });
-      }
+    if (error && error.code !== "23505") {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
     }
   };
 
@@ -293,7 +330,10 @@ export default function Forums() {
               <Copy className="h-3 w-3" /> Invite
             </Button>
           )}
+          <GroupSettings forum={activeForum} onLeft={() => setActiveForum(null)} />
         </div>
+
+        <PinnedMessages forumId={activeForum.id} />
 
         <div className="flex-1 overflow-y-auto space-y-3 px-1">
           {forumMessages?.map((msg: ForumMessage) => {
@@ -356,6 +396,16 @@ export default function Forums() {
                     <DropdownMenuItem onClick={() => { setReplyingTo(msg); toast({ title: "Forward: select a chat and paste" }); }}>
                       <Forward className="h-3.5 w-3.5 mr-2" /> Forward
                     </DropdownMenuItem>
+                    <Popover open={pinMenuMsg === msg.id} onOpenChange={(open) => setPinMenuMsg(open ? msg.id : null)}>
+                      <PopoverTrigger asChild>
+                        <DropdownMenuItem onSelect={(e) => { e.preventDefault(); setPinMenuMsg(msg.id); }}>
+                          <Pin className="h-3.5 w-3.5 mr-2" /> Pin
+                        </DropdownMenuItem>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-40 p-1" side="left">
+                        <PinDurationMenu messageId={msg.id} forumId={activeForum.id} onClose={() => setPinMenuMsg(null)} />
+                      </PopoverContent>
+                    </Popover>
                     {isMe && msg.message_type === "text" && (
                       <DropdownMenuItem onClick={() => { setEditingMsg(msg); setMessage(msg.content || ""); }}>
                         <Pencil className="h-3.5 w-3.5 mr-2" /> Edit
@@ -394,12 +444,12 @@ export default function Forums() {
           <Button variant="ghost" size="icon" className="h-10 w-10 shrink-0" onClick={shareStreak}>
             <Flame className="h-4 w-4 text-destructive" />
           </Button>
-          <Input
+          <MentionInput
             value={message}
-            onChange={(e) => setMessage(e.target.value)}
+            onChange={setMessage}
             onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); sendMessage(); } }}
-            placeholder={editingMsg ? "Edit message..." : replyingTo ? "Reply..." : "Type a message..."}
-            className="flex-1"
+            placeholder={editingMsg ? "Edit message..." : replyingTo ? "Reply..." : "Type a message... (@ to mention)"}
+            forumId={activeForum.id}
           />
           <Button size="icon" className="h-10 w-10 shrink-0 rounded-xl" onClick={sendMessage} disabled={!message.trim()}>
             <Send className="h-4 w-4" />
@@ -477,7 +527,7 @@ export default function Forums() {
             <Card
               key={forum.id}
               className="border-0 shadow-sm hover:shadow-md transition-shadow cursor-pointer"
-              onClick={() => { joinGroup(forum.id); setActiveForum(forum); }}
+              onClick={async () => { await joinGroup(forum); if (!(forum as any).require_approval) setActiveForum(forum); }}
             >
               <CardContent className="p-4 flex items-center gap-3">
                 <div className="flex h-11 w-11 items-center justify-center rounded-full bg-primary/10 shrink-0">
