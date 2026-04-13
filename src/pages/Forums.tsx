@@ -444,12 +444,12 @@ export default function Forums() {
           <Button variant="ghost" size="icon" className="h-10 w-10 shrink-0" onClick={shareStreak}>
             <Flame className="h-4 w-4 text-destructive" />
           </Button>
-          <Input
+          <MentionInput
             value={message}
-            onChange={(e) => setMessage(e.target.value)}
+            onChange={setMessage}
             onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); sendMessage(); } }}
-            placeholder={editingMsg ? "Edit message..." : replyingTo ? "Reply..." : "Type a message..."}
-            className="flex-1"
+            placeholder={editingMsg ? "Edit message..." : replyingTo ? "Reply..." : "Type a message... (@ to mention)"}
+            forumId={activeForum.id}
           />
           <Button size="icon" className="h-10 w-10 shrink-0 rounded-xl" onClick={sendMessage} disabled={!message.trim()}>
             <Send className="h-4 w-4" />
