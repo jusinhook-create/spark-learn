@@ -42,6 +42,7 @@ export default function Forums() {
   const [previewImage, setPreviewImage] = useState<string | null>(null);
   const [editingMsg, setEditingMsg] = useState<ForumMessage | null>(null);
   const [replyingTo, setReplyingTo] = useState<ForumMessage | null>(null);
+  const [pinMenuMsg, setPinMenuMsg] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
