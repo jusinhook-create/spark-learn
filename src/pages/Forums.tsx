@@ -155,17 +155,49 @@ export default function Forums() {
     },
   });
 
-  const joinGroup = async (forumId: string) => {
+  const joinGroup = async (forum: any) => {
+    // Check if approval is required
+    if ((forum as any).require_approval) {
+      // Check if already a member
+      const { data: existing } = await supabase
+        .from("group_members")
+        .select("id")
+        .eq("forum_id", forum.id)
+        .eq("user_id", user!.id)
+        .maybeSingle();
+      if (existing) return; // already a member
+
+      // Check if already requested
+      const { data: existingReq } = await supabase
+        .from("join_requests")
+        .select("id, status")
+        .eq("forum_id", forum.id)
+        .eq("user_id", user!.id)
+        .maybeSingle();
+      if (existingReq) {
+        if (existingReq.status === "pending") {
+          toast({ title: "Request pending", description: "Waiting for admin approval" });
+        } else if (existingReq.status === "rejected") {
+          toast({ title: "Request rejected", variant: "destructive" });
+        }
+        return;
+      }
+
+      // Create join request
+      await supabase.from("join_requests").insert({
+        forum_id: forum.id,
+        user_id: user!.id,
+      } as any);
+      toast({ title: "Request sent!", description: "Waiting for admin approval" });
+      return;
+    }
+
     const { error } = await supabase.from("group_members").insert({
-      forum_id: forumId,
+      forum_id: forum.id,
       user_id: user!.id,
     });
-    if (error) {
-      if (error.code === "23505") {
-        // Already joined, silently continue
-      } else {
-        toast({ title: "Error", description: error.message, variant: "destructive" });
-      }
+    if (error && error.code !== "23505") {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
     }
   };
 
