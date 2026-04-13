@@ -3,12 +3,16 @@ import { useAuth } from "@/lib/auth";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { MessageSquare, Send, Plus, Image, Flame, Loader2, ArrowLeft, Search, Copy, UserPlus, X, Trash2, Pencil, Reply, Share2, Forward } from "lucide-react";
+import { MessageSquare, Send, Plus, Image, Flame, Loader2, ArrowLeft, Search, Copy, UserPlus, X, Trash2, Pencil, Reply, Share2, Forward, Pin } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { GroupSettings } from "@/components/forums/GroupSettings";
+import { PinnedMessages, PinDurationMenu } from "@/components/forums/PinnedMessages";
+import { MentionInput } from "@/components/forums/MentionInput";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 
 type ForumMessage = {
   id: string;
