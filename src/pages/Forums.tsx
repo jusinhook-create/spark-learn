@@ -396,6 +396,16 @@ export default function Forums() {
                     <DropdownMenuItem onClick={() => { setReplyingTo(msg); toast({ title: "Forward: select a chat and paste" }); }}>
                       <Forward className="h-3.5 w-3.5 mr-2" /> Forward
                     </DropdownMenuItem>
+                    <Popover open={pinMenuMsg === msg.id} onOpenChange={(open) => setPinMenuMsg(open ? msg.id : null)}>
+                      <PopoverTrigger asChild>
+                        <DropdownMenuItem onSelect={(e) => { e.preventDefault(); setPinMenuMsg(msg.id); }}>
+                          <Pin className="h-3.5 w-3.5 mr-2" /> Pin
+                        </DropdownMenuItem>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-40 p-1" side="left">
+                        <PinDurationMenu messageId={msg.id} forumId={activeForum.id} onClose={() => setPinMenuMsg(null)} />
+                      </PopoverContent>
+                    </Popover>
                     {isMe && msg.message_type === "text" && (
                       <DropdownMenuItem onClick={() => { setEditingMsg(msg); setMessage(msg.content || ""); }}>
                         <Pencil className="h-3.5 w-3.5 mr-2" /> Edit
