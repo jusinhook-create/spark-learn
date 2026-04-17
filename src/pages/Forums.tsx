@@ -497,7 +497,7 @@ export default function Forums() {
             onClose={() => setPreviewImage(null)}
             onReply={async (text) => {
               if (!user || !activeForum) return;
-              const replyMsg = forumMessages?.find((m: any) => m.image_url === previewImage);
+              const replyMsg = (forumMessages as ForumMessage[] | undefined)?.find((m) => m.image_url === previewImage);
               const prefix = replyMsg
                 ? `> ${replyMsg.profile?.display_name || "User"}: [image]\n\n`
                 : "";
