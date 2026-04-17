@@ -108,6 +108,18 @@ export default function Forums() {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [forumMessages]);
 
+  // Mark forum as read when opening / when new messages arrive while viewing
+  useEffect(() => {
+    if (!activeForum || !user) return;
+    markForumRead(user.id, activeForum.id);
+  }, [activeForum?.id, forumMessages?.length, user?.id]);
+
+  // Per-user unread counts and admin-only pending request counts (for list view)
+  const forumIds = filteredForums?.map((f) => f.id) || [];
+  const adminForumIds = filteredForums?.filter((f) => f.created_by === user?.id).map((f) => f.id) || [];
+  const unreadCounts = useUnreadCounts(forumIds);
+  const pendingCounts = usePendingRequestCounts(adminForumIds);
+
   const createForum = useMutation({
     mutationFn: async () => {
       const { data, error } = await supabase.from("forums").insert({
