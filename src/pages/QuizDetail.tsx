@@ -322,6 +322,11 @@ export default function QuizDetail() {
             })}
           </div>
         </div>
+        <ShareToCommunityDialog
+          message={buildShareMessage()}
+          open={shareCommunityOpen}
+          onOpenChange={setShareCommunityOpen}
+        />
       </div>
     );
   }
