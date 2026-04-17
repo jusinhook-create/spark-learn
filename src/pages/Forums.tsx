@@ -376,12 +376,30 @@ export default function Forums() {
                           </div>
                         </div>
                       ) : msg.message_type === "image" ? (
-                        <img
-                          src={msg.image_url!}
-                          alt="Shared"
-                          className="rounded-2xl max-w-full max-h-60 object-cover hover:opacity-90 transition-opacity"
-                          onClick={(e) => { e.stopPropagation(); setPreviewImage(msg.image_url!); }}
-                        />
+                        <div className="relative inline-block">
+                          <img
+                            src={msg.image_url!}
+                            alt="Shared"
+                            className="rounded-2xl max-w-full max-h-60 object-cover hover:opacity-90 transition-opacity cursor-pointer"
+                            onClick={(e) => { e.stopPropagation(); setPreviewImage(msg.image_url!); }}
+                          />
+                          {/* Subtle floating green quick-reply button */}
+                          <button
+                            type="button"
+                            aria-label="Quick reply to image"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setReplyingTo(msg);
+                              setTimeout(() => {
+                                const input = document.querySelector<HTMLTextAreaElement | HTMLInputElement>("[data-mention-input]");
+                                input?.focus();
+                              }, 50);
+                            }}
+                            className="absolute bottom-2 right-2 h-8 w-8 rounded-full bg-green-500/90 hover:bg-green-500 text-white shadow-lg flex items-center justify-center transition-transform active:scale-95 backdrop-blur-sm"
+                          >
+                            <Reply className="h-4 w-4" />
+                          </button>
+                        </div>
                       ) : (
                         <div className={`rounded-2xl px-4 py-2 text-sm ${isMe ? "bg-primary text-primary-foreground" : "bg-secondary"}`}>
                           {msg.content?.split("\n").map((line, li) => (
