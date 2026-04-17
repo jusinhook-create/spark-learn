@@ -4,10 +4,11 @@ import { useAuth } from "@/lib/auth";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
-import { Trophy, Clock, ArrowLeft, CheckCircle, XCircle, Coins, Loader2, Share2, ChevronLeft, ChevronRight } from "lucide-react";
+import { Trophy, Clock, ArrowLeft, CheckCircle, XCircle, Coins, Loader2, Share2, ChevronLeft, ChevronRight, MessageSquare, ExternalLink } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
+import { ShareToCommunityDialog } from "@/components/forums/ShareToCommunityDialog";
 
 export default function QuizDetail() {
   const { id } = useParams<{ id: string }>();
@@ -21,6 +22,16 @@ export default function QuizDetail() {
   const [finished, setFinished] = useState(false);
   const [timeLeft, setTimeLeft] = useState(0);
   const [isRegenerating, setIsRegenerating] = useState(false);
+  const [shareCommunityOpen, setShareCommunityOpen] = useState(false);
+
+  const { data: profile } = useQuery({
+    queryKey: ["profile-display-name", user?.id],
+    queryFn: async () => {
+      const { data } = await supabase.from("profiles").select("display_name").eq("user_id", user!.id).single();
+      return data;
+    },
+    enabled: !!user,
+  });
 
   const { data: quiz, isLoading: quizLoading } = useQuery({
     queryKey: ["quiz", id],
@@ -162,11 +173,15 @@ export default function QuizDetail() {
     }
   };
 
-  const handleShareStreak = async () => {
+  const buildShareMessage = () => {
     const totalQ = questions?.length || 0;
-    const pct = Math.round((score / totalQ) * 100);
-    const shareText = `🏆 I scored ${score}/${totalQ} (${pct}%) on "${quiz?.title}" on Alpha Thought! 🔥`;
+    const username = profile?.display_name || "A learner";
+    const appLink = typeof window !== "undefined" ? window.location.origin : "";
+    return `${username} scored ${score}/${totalQ} in '${quiz?.title}' on Alpha Thought! Try it: ${appLink}`;
+  };
 
+  const handleExternalShare = async () => {
+    const shareText = buildShareMessage();
     if (navigator.share) {
       try {
         await navigator.share({ title: "My Quiz Score", text: shareText });
@@ -231,9 +246,14 @@ export default function QuizDetail() {
             <Progress value={pct} className="mt-4" />
 
             <div className="flex flex-col gap-2 mt-6">
-              <Button onClick={handleShareStreak} variant="outline" className="gap-2">
-                <Share2 className="h-4 w-4" /> Share My Score 🔥
-              </Button>
+              <div className="grid grid-cols-2 gap-2">
+                <Button onClick={() => setShareCommunityOpen(true)} variant="outline" className="gap-2">
+                  <MessageSquare className="h-4 w-4" /> Share to Group
+                </Button>
+                <Button onClick={handleExternalShare} variant="outline" className="gap-2">
+                  <ExternalLink className="h-4 w-4" /> Share Externally
+                </Button>
+              </div>
               <div className="flex gap-3">
                 <Button variant="outline" className="flex-1" onClick={() => navigate("/quizzes")}>
                   Back to Quizzes
