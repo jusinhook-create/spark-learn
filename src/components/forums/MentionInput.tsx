@@ -65,6 +65,7 @@ export function MentionInput({ value, onChange, onKeyDown, placeholder, forumId 
         onKeyDown={onKeyDown}
         placeholder={placeholder}
         className="flex-1"
+        data-mention-input
       />
       {showSuggestions && suggestions.length > 0 && (
         <div className="absolute bottom-full left-0 right-0 mb-1 bg-background border rounded-lg shadow-lg max-h-40 overflow-y-auto z-50">
