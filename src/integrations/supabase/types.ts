@@ -112,6 +112,7 @@ export type Database = {
           id: string
           image_url: string | null
           message_type: string
+          reply_to_message_id: string | null
           streak_data: Json | null
           user_id: string
         }
@@ -122,6 +123,7 @@ export type Database = {
           id?: string
           image_url?: string | null
           message_type?: string
+          reply_to_message_id?: string | null
           streak_data?: Json | null
           user_id: string
         }
@@ -132,6 +134,7 @@ export type Database = {
           id?: string
           image_url?: string | null
           message_type?: string
+          reply_to_message_id?: string | null
           streak_data?: Json | null
           user_id?: string
         }
@@ -141,6 +144,13 @@ export type Database = {
             columns: ["forum_id"]
             isOneToOne: false
             referencedRelation: "forums"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "forum_messages_reply_to_message_id_fkey"
+            columns: ["reply_to_message_id"]
+            isOneToOne: false
+            referencedRelation: "forum_messages"
             referencedColumns: ["id"]
           },
         ]
@@ -173,6 +183,35 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "forum_posts_forum_id_fkey"
+            columns: ["forum_id"]
+            isOneToOne: false
+            referencedRelation: "forums"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      forum_reads: {
+        Row: {
+          forum_id: string
+          id: string
+          last_read_at: string
+          user_id: string
+        }
+        Insert: {
+          forum_id: string
+          id?: string
+          last_read_at?: string
+          user_id: string
+        }
+        Update: {
+          forum_id?: string
+          id?: string
+          last_read_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "forum_reads_forum_id_fkey"
             columns: ["forum_id"]
             isOneToOne: false
             referencedRelation: "forums"
