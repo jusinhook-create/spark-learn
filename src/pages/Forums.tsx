@@ -346,7 +346,14 @@ export default function Forums() {
               <Copy className="h-3 w-3" /> Invite
             </Button>
           )}
-          <GroupSettings forum={activeForum} onLeft={() => setActiveForum(null)} />
+          <div className="relative">
+            <GroupSettings forum={activeForum} onLeft={() => setActiveForum(null)} />
+            {activeForum.created_by === user?.id && (pendingCounts[activeForum.id] || 0) > 0 && (
+              <span className="absolute -top-1 -right-1 min-w-4 h-4 px-1 rounded-full bg-destructive text-destructive-foreground text-[9px] font-bold flex items-center justify-center pointer-events-none">
+                {pendingCounts[activeForum.id]}
+              </span>
+            )}
+          </div>
         </div>
 
         <PinnedMessages forumId={activeForum.id} />
