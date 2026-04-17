@@ -490,27 +490,26 @@ export default function Forums() {
           </Button>
         </div>
 
-        {/* WhatsApp-style image preview */}
+        {/* Full-screen image viewer with zoom + swipe gestures */}
         {previewImage && (
-          <div
-            className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center"
-            onClick={() => setPreviewImage(null)}
-          >
-            <Button
-              variant="ghost"
-              size="icon"
-              className="absolute top-4 right-4 text-white hover:bg-white/20 z-10"
-              onClick={() => setPreviewImage(null)}
-            >
-              <X className="h-6 w-6" />
-            </Button>
-            <img
-              src={previewImage}
-              alt="Preview"
-              className="max-w-[95vw] max-h-[90vh] object-contain rounded-lg"
-              onClick={(e) => e.stopPropagation()}
-            />
-          </div>
+          <ImageViewer
+            imageUrl={previewImage}
+            onClose={() => setPreviewImage(null)}
+            onReply={async (text) => {
+              if (!user || !activeForum) return;
+              const replyMsg = forumMessages?.find((m: any) => m.image_url === previewImage);
+              const prefix = replyMsg
+                ? `> ${replyMsg.profile?.display_name || "User"}: [image]\n\n`
+                : "";
+              await supabase.from("forum_messages").insert({
+                forum_id: activeForum.id,
+                user_id: user.id,
+                content: prefix + text,
+                message_type: "text",
+              });
+              queryClient.invalidateQueries({ queryKey: ["forum-messages", activeForum.id] });
+            }}
+          />
         )}
       </div>
     );
