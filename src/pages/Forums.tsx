@@ -556,43 +556,60 @@ export default function Forums() {
         </div>
       ) : filteredForums && filteredForums.length > 0 ? (
         <div className="space-y-2">
-          {filteredForums.map((forum) => (
-            <Card
-              key={forum.id}
-              className="border-0 shadow-sm hover:shadow-md transition-shadow cursor-pointer"
-              onClick={async () => { await joinGroup(forum); if (!(forum as any).require_approval) setActiveForum(forum); }}
-            >
-              <CardContent className="p-4 flex items-center gap-3">
-                <div className="flex h-11 w-11 items-center justify-center rounded-full bg-primary/10 shrink-0">
-                  <MessageSquare className="h-5 w-5 text-primary" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="font-semibold text-sm">{forum.title}</p>
-                  <p className="text-xs text-muted-foreground truncate">{forum.description || "Tap to chat"}</p>
-                </div>
-                {forum.created_by === user?.id && (
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-8 w-8 shrink-0 text-muted-foreground hover:text-destructive"
-                    onClick={async (e) => {
-                      e.stopPropagation();
-                      if (!confirm("Delete this group? All messages will be lost.")) return;
-                      const { error } = await supabase.from("forums").delete().eq("id", forum.id);
-                      if (error) {
-                        toast({ title: "Error", description: error.message, variant: "destructive" });
-                      } else {
-                        queryClient.invalidateQueries({ queryKey: ["forums"] });
-                        toast({ title: "Group deleted" });
-                      }
-                    }}
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
-                )}
-              </CardContent>
-            </Card>
-          ))}
+          {filteredForums.map((forum) => {
+            const unread = unreadCounts[forum.id] || 0;
+            const isAdmin = forum.created_by === user?.id;
+            const pending = isAdmin ? (pendingCounts[forum.id] || 0) : 0;
+            return (
+              <Card
+                key={forum.id}
+                className="border-0 shadow-sm hover:shadow-md transition-shadow cursor-pointer"
+                onClick={async () => { await joinGroup(forum); if (!(forum as any).require_approval) setActiveForum(forum); }}
+              >
+                <CardContent className="p-4 flex items-center gap-3">
+                  <div className="relative flex h-11 w-11 items-center justify-center rounded-full bg-primary/10 shrink-0">
+                    <MessageSquare className="h-5 w-5 text-primary" />
+                    {unread > 0 && (
+                      <span className="absolute -top-1 -right-1 min-w-5 h-5 px-1 rounded-full bg-primary text-primary-foreground text-[10px] font-bold flex items-center justify-center shadow">
+                        {unread > 99 ? "99+" : unread}
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-1.5">
+                      <p className="font-semibold text-sm truncate">{forum.title}</p>
+                      {isAdmin && pending > 0 && (
+                        <Badge variant="destructive" className="h-5 gap-1 px-1.5 text-[10px] shrink-0">
+                          <Bell className="h-2.5 w-2.5" /> {pending} request{pending > 1 ? "s" : ""}
+                        </Badge>
+                      )}
+                    </div>
+                    <p className="text-xs text-muted-foreground truncate">{forum.description || "Tap to chat"}</p>
+                  </div>
+                  {isAdmin && (
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8 shrink-0 text-muted-foreground hover:text-destructive"
+                      onClick={async (e) => {
+                        e.stopPropagation();
+                        if (!confirm("Delete this group? All messages will be lost.")) return;
+                        const { error } = await supabase.from("forums").delete().eq("id", forum.id);
+                        if (error) {
+                          toast({ title: "Error", description: error.message, variant: "destructive" });
+                        } else {
+                          queryClient.invalidateQueries({ queryKey: ["forums"] });
+                          toast({ title: "Group deleted" });
+                        }
+                      }}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  )}
+                </CardContent>
+              </Card>
+            );
+          })}
         </div>
       ) : (
         <Card className="border-0 shadow-sm">
