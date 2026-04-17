@@ -3,7 +3,7 @@ import { useAuth } from "@/lib/auth";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { MessageSquare, Send, Plus, Image, Flame, Loader2, ArrowLeft, Search, Copy, UserPlus, X, Trash2, Pencil, Reply, Share2, Forward, Pin } from "lucide-react";
+import { MessageSquare, Send, Plus, Image, Flame, Loader2, ArrowLeft, Search, Copy, UserPlus, X, Trash2, Pencil, Reply, Share2, Forward, Pin, Bell } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
@@ -12,7 +12,11 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { GroupSettings } from "@/components/forums/GroupSettings";
 import { PinnedMessages, PinDurationMenu } from "@/components/forums/PinnedMessages";
 import { MentionInput } from "@/components/forums/MentionInput";
+import { ImageViewer } from "@/components/forums/ImageViewer";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { useUnreadCounts, markForumRead } from "@/hooks/use-unread-counts";
+import { usePendingRequestCounts } from "@/hooks/use-pending-requests";
+import { Badge } from "@/components/ui/badge";
 
 type ForumMessage = {
   id: string;
@@ -103,6 +107,18 @@ export default function Forums() {
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [forumMessages]);
+
+  // Mark forum as read when opening / when new messages arrive while viewing
+  useEffect(() => {
+    if (!activeForum || !user) return;
+    markForumRead(user.id, activeForum.id);
+  }, [activeForum?.id, forumMessages?.length, user?.id]);
+
+  // Per-user unread counts and admin-only pending request counts (for list view)
+  const forumIds = filteredForums?.map((f) => f.id) || [];
+  const adminForumIds = filteredForums?.filter((f) => f.created_by === user?.id).map((f) => f.id) || [];
+  const unreadCounts = useUnreadCounts(forumIds);
+  const pendingCounts = usePendingRequestCounts(adminForumIds);
 
   const createForum = useMutation({
     mutationFn: async () => {
@@ -330,7 +346,14 @@ export default function Forums() {
               <Copy className="h-3 w-3" /> Invite
             </Button>
           )}
-          <GroupSettings forum={activeForum} onLeft={() => setActiveForum(null)} />
+          <div className="relative">
+            <GroupSettings forum={activeForum} onLeft={() => setActiveForum(null)} />
+            {activeForum.created_by === user?.id && (pendingCounts[activeForum.id] || 0) > 0 && (
+              <span className="absolute -top-1 -right-1 min-w-4 h-4 px-1 rounded-full bg-destructive text-destructive-foreground text-[9px] font-bold flex items-center justify-center pointer-events-none">
+                {pendingCounts[activeForum.id]}
+              </span>
+            )}
+          </div>
         </div>
 
         <PinnedMessages forumId={activeForum.id} />
@@ -360,12 +383,30 @@ export default function Forums() {
                           </div>
                         </div>
                       ) : msg.message_type === "image" ? (
-                        <img
-                          src={msg.image_url!}
-                          alt="Shared"
-                          className="rounded-2xl max-w-full max-h-60 object-cover hover:opacity-90 transition-opacity"
-                          onClick={(e) => { e.stopPropagation(); setPreviewImage(msg.image_url!); }}
-                        />
+                        <div className="relative inline-block">
+                          <img
+                            src={msg.image_url!}
+                            alt="Shared"
+                            className="rounded-2xl max-w-full max-h-60 object-cover hover:opacity-90 transition-opacity cursor-pointer"
+                            onClick={(e) => { e.stopPropagation(); setPreviewImage(msg.image_url!); }}
+                          />
+                          {/* Subtle floating green quick-reply button */}
+                          <button
+                            type="button"
+                            aria-label="Quick reply to image"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setReplyingTo(msg);
+                              setTimeout(() => {
+                                const input = document.querySelector<HTMLTextAreaElement | HTMLInputElement>("[data-mention-input]");
+                                input?.focus();
+                              }, 50);
+                            }}
+                            className="absolute bottom-2 right-2 h-8 w-8 rounded-full bg-green-500/90 hover:bg-green-500 text-white shadow-lg flex items-center justify-center transition-transform active:scale-95 backdrop-blur-sm"
+                          >
+                            <Reply className="h-4 w-4" />
+                          </button>
+                        </div>
                       ) : (
                         <div className={`rounded-2xl px-4 py-2 text-sm ${isMe ? "bg-primary text-primary-foreground" : "bg-secondary"}`}>
                           {msg.content?.split("\n").map((line, li) => (
@@ -456,27 +497,26 @@ export default function Forums() {
           </Button>
         </div>
 
-        {/* WhatsApp-style image preview */}
+        {/* Full-screen image viewer with zoom + swipe gestures */}
         {previewImage && (
-          <div
-            className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center"
-            onClick={() => setPreviewImage(null)}
-          >
-            <Button
-              variant="ghost"
-              size="icon"
-              className="absolute top-4 right-4 text-white hover:bg-white/20 z-10"
-              onClick={() => setPreviewImage(null)}
-            >
-              <X className="h-6 w-6" />
-            </Button>
-            <img
-              src={previewImage}
-              alt="Preview"
-              className="max-w-[95vw] max-h-[90vh] object-contain rounded-lg"
-              onClick={(e) => e.stopPropagation()}
-            />
-          </div>
+          <ImageViewer
+            imageUrl={previewImage}
+            onClose={() => setPreviewImage(null)}
+            onReply={async (text) => {
+              if (!user || !activeForum) return;
+              const replyMsg = (forumMessages as ForumMessage[] | undefined)?.find((m) => m.image_url === previewImage);
+              const prefix = replyMsg
+                ? `> ${replyMsg.profile?.display_name || "User"}: [image]\n\n`
+                : "";
+              await supabase.from("forum_messages").insert({
+                forum_id: activeForum.id,
+                user_id: user.id,
+                content: prefix + text,
+                message_type: "text",
+              });
+              queryClient.invalidateQueries({ queryKey: ["forum-messages", activeForum.id] });
+            }}
+          />
         )}
       </div>
     );
@@ -523,43 +563,60 @@ export default function Forums() {
         </div>
       ) : filteredForums && filteredForums.length > 0 ? (
         <div className="space-y-2">
-          {filteredForums.map((forum) => (
-            <Card
-              key={forum.id}
-              className="border-0 shadow-sm hover:shadow-md transition-shadow cursor-pointer"
-              onClick={async () => { await joinGroup(forum); if (!(forum as any).require_approval) setActiveForum(forum); }}
-            >
-              <CardContent className="p-4 flex items-center gap-3">
-                <div className="flex h-11 w-11 items-center justify-center rounded-full bg-primary/10 shrink-0">
-                  <MessageSquare className="h-5 w-5 text-primary" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="font-semibold text-sm">{forum.title}</p>
-                  <p className="text-xs text-muted-foreground truncate">{forum.description || "Tap to chat"}</p>
-                </div>
-                {forum.created_by === user?.id && (
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-8 w-8 shrink-0 text-muted-foreground hover:text-destructive"
-                    onClick={async (e) => {
-                      e.stopPropagation();
-                      if (!confirm("Delete this group? All messages will be lost.")) return;
-                      const { error } = await supabase.from("forums").delete().eq("id", forum.id);
-                      if (error) {
-                        toast({ title: "Error", description: error.message, variant: "destructive" });
-                      } else {
-                        queryClient.invalidateQueries({ queryKey: ["forums"] });
-                        toast({ title: "Group deleted" });
-                      }
-                    }}
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
-                )}
-              </CardContent>
-            </Card>
-          ))}
+          {filteredForums.map((forum) => {
+            const unread = unreadCounts[forum.id] || 0;
+            const isAdmin = forum.created_by === user?.id;
+            const pending = isAdmin ? (pendingCounts[forum.id] || 0) : 0;
+            return (
+              <Card
+                key={forum.id}
+                className="border-0 shadow-sm hover:shadow-md transition-shadow cursor-pointer"
+                onClick={async () => { await joinGroup(forum); if (!(forum as any).require_approval) setActiveForum(forum); }}
+              >
+                <CardContent className="p-4 flex items-center gap-3">
+                  <div className="relative flex h-11 w-11 items-center justify-center rounded-full bg-primary/10 shrink-0">
+                    <MessageSquare className="h-5 w-5 text-primary" />
+                    {unread > 0 && (
+                      <span className="absolute -top-1 -right-1 min-w-5 h-5 px-1 rounded-full bg-primary text-primary-foreground text-[10px] font-bold flex items-center justify-center shadow">
+                        {unread > 99 ? "99+" : unread}
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-1.5">
+                      <p className="font-semibold text-sm truncate">{forum.title}</p>
+                      {isAdmin && pending > 0 && (
+                        <Badge variant="destructive" className="h-5 gap-1 px-1.5 text-[10px] shrink-0">
+                          <Bell className="h-2.5 w-2.5" /> {pending} request{pending > 1 ? "s" : ""}
+                        </Badge>
+                      )}
+                    </div>
+                    <p className="text-xs text-muted-foreground truncate">{forum.description || "Tap to chat"}</p>
+                  </div>
+                  {isAdmin && (
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8 shrink-0 text-muted-foreground hover:text-destructive"
+                      onClick={async (e) => {
+                        e.stopPropagation();
+                        if (!confirm("Delete this group? All messages will be lost.")) return;
+                        const { error } = await supabase.from("forums").delete().eq("id", forum.id);
+                        if (error) {
+                          toast({ title: "Error", description: error.message, variant: "destructive" });
+                        } else {
+                          queryClient.invalidateQueries({ queryKey: ["forums"] });
+                          toast({ title: "Group deleted" });
+                        }
+                      }}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  )}
+                </CardContent>
+              </Card>
+            );
+          })}
         </div>
       ) : (
         <Card className="border-0 shadow-sm">
