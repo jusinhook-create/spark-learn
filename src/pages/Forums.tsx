@@ -17,6 +17,8 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { useUnreadCounts, markForumRead } from "@/hooks/use-unread-counts";
 import { usePendingRequestCounts } from "@/hooks/use-pending-requests";
 import { Badge } from "@/components/ui/badge";
+import { useIsAdmin } from "@/hooks/use-admin";
+import { AtSign } from "lucide-react";
 
 type ForumMessage = {
   id: string;
