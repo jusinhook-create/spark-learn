@@ -34,6 +34,7 @@ type ForumMessage = {
 
 export default function Forums() {
   const { user } = useAuth();
+  const { isAdmin: isAppAdmin } = useIsAdmin();
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [activeForum, setActiveForum] = useState<any>(null);
