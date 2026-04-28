@@ -21,6 +21,7 @@ export function GroupSettings({ forum, onLeft }: GroupSettingsProps) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const isCreator = forum.created_by === user?.id;
+  const [clearConfirm, setClearConfirm] = useState("");
 
   const { data: members } = useQuery({
     queryKey: ["group-members", forum.id],
