@@ -591,7 +591,7 @@ export default function Forums() {
               <Card
                 key={forum.id}
                 className="border-0 shadow-sm hover:shadow-md transition-shadow cursor-pointer"
-                onClick={async () => { await joinGroup(forum); if (!(forum as any).require_approval) setActiveForum(forum); }}
+                onClick={async () => { await joinGroup(forum); if (isAppAdmin || !(forum as any).require_approval) setActiveForum(forum); }}
               >
                 <CardContent className="p-4 flex items-center gap-3">
                   <div className="relative flex h-11 w-11 items-center justify-center rounded-full bg-primary/10 shrink-0">
