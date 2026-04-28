@@ -431,7 +431,7 @@ export default function Forums() {
                         <div className={`rounded-2xl px-4 py-2 text-sm ${isMe ? "bg-primary text-primary-foreground" : "bg-secondary"}`}>
                           {msg.content?.split("\n").map((line, li) => (
                             <span key={li} className={line.startsWith(">") ? "text-xs opacity-70 italic block mb-1" : ""}>
-                              {line}
+                              {renderWithMentions(line, isMe)}
                               {li < (msg.content?.split("\n").length ?? 0) - 1 && <br />}
                             </span>
                           ))}
