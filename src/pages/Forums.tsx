@@ -63,6 +63,7 @@ export default function Forums() {
   const [inviteCode, setInviteCode] = useState("");
   const [isUploadingImage, setIsUploadingImage] = useState(false);
   const [previewImage, setPreviewImage] = useState<string | null>(null);
+  const [previewMsgId, setPreviewMsgId] = useState<string | null>(null);
   const [editingMsg, setEditingMsg] = useState<ForumMessage | null>(null);
   const [replyingTo, setReplyingTo] = useState<ForumMessage | null>(null);
   const [pinMenuMsg, setPinMenuMsg] = useState<string | null>(null);
