@@ -17,6 +17,8 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { useUnreadCounts, markForumRead } from "@/hooks/use-unread-counts";
 import { usePendingRequestCounts } from "@/hooks/use-pending-requests";
 import { Badge } from "@/components/ui/badge";
+import { useIsAdmin } from "@/hooks/use-admin";
+import { AtSign } from "lucide-react";
 
 type ForumMessage = {
   id: string;
@@ -32,6 +34,7 @@ type ForumMessage = {
 
 export default function Forums() {
   const { user } = useAuth();
+  const { isAdmin: isAppAdmin } = useIsAdmin();
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [activeForum, setActiveForum] = useState<any>(null);
@@ -172,6 +175,23 @@ export default function Forums() {
   });
 
   const joinGroup = async (forum: any) => {
+    // App Admins always get instant access to any group (no request, no notification)
+    if (isAppAdmin) {
+      const { data: existing } = await supabase
+        .from("group_members")
+        .select("id")
+        .eq("forum_id", forum.id)
+        .eq("user_id", user!.id)
+        .maybeSingle();
+      if (!existing) {
+        await supabase.from("group_members").insert({
+          forum_id: forum.id,
+          user_id: user!.id,
+        });
+      }
+      return;
+    }
+
     // Check if approval is required
     if ((forum as any).require_approval) {
       // Check if already a member
@@ -485,6 +505,21 @@ export default function Forums() {
           <Button variant="ghost" size="icon" className="h-10 w-10 shrink-0" onClick={shareStreak}>
             <Flame className="h-4 w-4 text-destructive" />
           </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-10 w-10 shrink-0"
+            aria-label="Tag a member"
+            onClick={() => {
+              setMessage((m) => (m.endsWith("@") || m.length === 0 ? m + "@" : m + " @"));
+              setTimeout(() => {
+                const input = document.querySelector<HTMLInputElement>("[data-mention-input]");
+                input?.focus();
+              }, 30);
+            }}
+          >
+            <AtSign className="h-4 w-4" />
+          </Button>
           <MentionInput
             value={message}
             onChange={setMessage}
@@ -571,7 +606,7 @@ export default function Forums() {
               <Card
                 key={forum.id}
                 className="border-0 shadow-sm hover:shadow-md transition-shadow cursor-pointer"
-                onClick={async () => { await joinGroup(forum); if (!(forum as any).require_approval) setActiveForum(forum); }}
+                onClick={async () => { await joinGroup(forum); if (isAppAdmin || !(forum as any).require_approval) setActiveForum(forum); }}
               >
                 <CardContent className="p-4 flex items-center gap-3">
                   <div className="relative flex h-11 w-11 items-center justify-center rounded-full bg-primary/10 shrink-0">

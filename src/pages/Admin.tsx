@@ -173,7 +173,17 @@ export default function Admin() {
   ];
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 relative">
+      {/* Floating shield-circle: returns to top of Admin Dashboard */}
+      <button
+        type="button"
+        aria-label="Return to Admin Dashboard"
+        onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
+        className="fixed top-4 right-4 z-40 h-11 w-11 rounded-full bg-primary text-primary-foreground shadow-lg flex items-center justify-center hover:scale-105 active:scale-95 transition-transform"
+      >
+        <Shield className="h-5 w-5" />
+      </button>
+
       <div className="flex items-center gap-3">
         <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary text-primary-foreground">
           <Shield className="h-5 w-5" />

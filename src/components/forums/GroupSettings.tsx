@@ -106,6 +106,17 @@ export function GroupSettings({ forum, onLeft }: GroupSettingsProps) {
     },
   });
 
+  const clearChat = useMutation({
+    mutationFn: async () => {
+      // RLS only allows deleting own messages — safe per-user clear
+      await supabase.from("forum_messages").delete().eq("forum_id", forum.id).eq("user_id", user!.id);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["forum-messages", forum.id] });
+      toast({ title: "Delete successful 🟢", description: "Your messages were cleared" });
+    },
+  });
+
   return (
     <Sheet>
       <SheetTrigger asChild>
@@ -183,30 +194,45 @@ export function GroupSettings({ forum, onLeft }: GroupSettingsProps) {
             </div>
           </div>
 
-          {/* Exit group */}
-          {!isCreator && (
-            <AlertDialog>
-              <AlertDialogTrigger asChild>
-                <Button variant="destructive" className="w-full gap-2">
-                  <LogOut className="h-4 w-4" /> Exit Group
+          {/* Exit group + Clear chat */}
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button variant="destructive" className="w-full gap-2">
+                <LogOut className="h-4 w-4" /> Exit / Clear
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Group actions</AlertDialogTitle>
+                <AlertDialogDescription>
+                  Choose what to do. "Clear Chat" removes only your own messages from this group.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <div className="grid gap-2 py-2">
+                <Button
+                  variant="outline"
+                  className="w-full justify-start gap-2"
+                  onClick={() => clearChat.mutate()}
+                  disabled={clearChat.isPending}
+                >
+                  {clearChat.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : "🧹"} Clear Chat (your messages)
                 </Button>
-              </AlertDialogTrigger>
-              <AlertDialogContent>
-                <AlertDialogHeader>
-                  <AlertDialogTitle>Leave this group?</AlertDialogTitle>
-                  <AlertDialogDescription>
-                    You can rejoin later if the group is public.
-                  </AlertDialogDescription>
-                </AlertDialogHeader>
-                <AlertDialogFooter>
-                  <AlertDialogCancel>Cancel</AlertDialogCancel>
-                  <AlertDialogAction onClick={() => leaveGroup.mutate()}>
-                    {leaveGroup.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : "Leave"}
-                  </AlertDialogAction>
-                </AlertDialogFooter>
-              </AlertDialogContent>
-            </AlertDialog>
-          )}
+                {!isCreator && (
+                  <Button
+                    variant="destructive"
+                    className="w-full justify-start gap-2"
+                    onClick={() => leaveGroup.mutate()}
+                    disabled={leaveGroup.isPending}
+                  >
+                    {leaveGroup.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <LogOut className="h-4 w-4" />} Exit Group
+                  </Button>
+                )}
+              </div>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Close</AlertDialogCancel>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
         </div>
       </SheetContent>
     </Sheet>
