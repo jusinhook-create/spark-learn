@@ -554,10 +554,12 @@ export default function Forums() {
         {previewImage && (
           <ImageViewer
             imageUrl={previewImage}
-            onClose={() => setPreviewImage(null)}
+            onClose={() => { setPreviewImage(null); setPreviewMsgId(null); }}
             onReply={async (text) => {
               if (!user || !activeForum) return;
-              const replyMsg = (forumMessages as ForumMessage[] | undefined)?.find((m) => m.image_url === previewImage);
+              const replyMsg = (forumMessages as ForumMessage[] | undefined)?.find(
+                (m) => m.id === previewMsgId
+              );
               const prefix = replyMsg
                 ? `> ${replyMsg.profile?.display_name || "User"}: [image]\n\n`
                 : "";
@@ -566,7 +568,8 @@ export default function Forums() {
                 user_id: user.id,
                 content: prefix + text,
                 message_type: "text",
-              });
+                reply_to_message_id: replyMsg?.id ?? null,
+              } as any);
               queryClient.invalidateQueries({ queryKey: ["forum-messages", activeForum.id] });
             }}
           />
