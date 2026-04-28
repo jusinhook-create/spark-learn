@@ -106,6 +106,17 @@ export function GroupSettings({ forum, onLeft }: GroupSettingsProps) {
     },
   });
 
+  const clearChat = useMutation({
+    mutationFn: async () => {
+      // RLS only allows deleting own messages — safe per-user clear
+      await supabase.from("forum_messages").delete().eq("forum_id", forum.id).eq("user_id", user!.id);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["forum-messages", forum.id] });
+      toast({ title: "Delete successful 🟢", description: "Your messages were cleared" });
+    },
+  });
+
   return (
     <Sheet>
       <SheetTrigger asChild>
