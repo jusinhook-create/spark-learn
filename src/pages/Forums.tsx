@@ -282,7 +282,8 @@ export default function Forums() {
       user_id: user.id,
       content,
       message_type: "text",
-    });
+      reply_to_message_id: replyingTo?.id ?? null,
+    } as any);
     if (error) {
       toast({ title: "Error", description: error.message, variant: "destructive" });
     } else {
