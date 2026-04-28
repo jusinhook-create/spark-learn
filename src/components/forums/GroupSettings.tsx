@@ -1,6 +1,7 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { Settings, LogOut, Users, Shield, Loader2, Check, X } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
@@ -20,6 +21,24 @@ export function GroupSettings({ forum, onLeft }: GroupSettingsProps) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const isCreator = forum.created_by === user?.id;
+  const [clearConfirm, setClearConfirm] = useState("");
+
+  // Realtime: refresh pending requests live for this group's admin
+  useEffect(() => {
+    if (!isCreator) return;
+    const ch = supabase
+      .channel(`jr-${forum.id}`)
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "join_requests", filter: `forum_id=eq.${forum.id}` },
+        () => {
+          queryClient.invalidateQueries({ queryKey: ["join-requests", forum.id] });
+          queryClient.invalidateQueries({ queryKey: ["pending-requests"] });
+        }
+      )
+      .subscribe();
+    return () => { supabase.removeChannel(ch); };
+  }, [forum.id, isCreator]);
 
   const { data: members } = useQuery({
     queryKey: ["group-members", forum.id],
@@ -108,12 +127,22 @@ export function GroupSettings({ forum, onLeft }: GroupSettingsProps) {
 
   const clearChat = useMutation({
     mutationFn: async () => {
-      // RLS only allows deleting own messages — safe per-user clear
-      await supabase.from("forum_messages").delete().eq("forum_id", forum.id).eq("user_id", user!.id);
+      if (!user?.id || !forum?.id) throw new Error("Missing user or group");
+      // Triple-scope guard: forum + user, RLS also enforces user_id = auth.uid()
+      const { error, count } = await supabase
+        .from("forum_messages")
+        .delete({ count: "exact" })
+        .eq("forum_id", forum.id)
+        .eq("user_id", user.id);
+      if (error) throw error;
+      return count ?? 0;
     },
-    onSuccess: () => {
+    onSuccess: (count) => {
       queryClient.invalidateQueries({ queryKey: ["forum-messages", forum.id] });
-      toast({ title: "Delete successful 🟢", description: "Your messages were cleared" });
+      toast({ title: "Delete successful 🟢", description: `${count} of your messages cleared` });
+    },
+    onError: (e: any) => {
+      toast({ title: "Could not clear", description: e.message, variant: "destructive" });
     },
   });
 
@@ -209,14 +238,25 @@ export function GroupSettings({ forum, onLeft }: GroupSettingsProps) {
                 </AlertDialogDescription>
               </AlertDialogHeader>
               <div className="grid gap-2 py-2">
-                <Button
-                  variant="outline"
-                  className="w-full justify-start gap-2"
-                  onClick={() => clearChat.mutate()}
-                  disabled={clearChat.isPending}
-                >
-                  {clearChat.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : "🧹"} Clear Chat (your messages)
-                </Button>
+                <div className="rounded-lg border p-3 space-y-2">
+                  <p className="text-xs text-muted-foreground">
+                    Type <span className="font-mono font-semibold">CLEAR</span> to delete only your own messages in this group.
+                  </p>
+                  <Input
+                    value={clearConfirm}
+                    onChange={(e) => setClearConfirm(e.target.value)}
+                    placeholder="Type CLEAR"
+                    className="h-8"
+                  />
+                  <Button
+                    variant="outline"
+                    className="w-full justify-start gap-2"
+                    onClick={() => { clearChat.mutate(undefined, { onSettled: () => setClearConfirm("") }); }}
+                    disabled={clearChat.isPending || clearConfirm !== "CLEAR"}
+                  >
+                    {clearChat.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : "🧹"} Clear my messages
+                  </Button>
+                </div>
                 {!isCreator && (
                   <Button
                     variant="destructive"

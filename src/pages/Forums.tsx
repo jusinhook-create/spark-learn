@@ -32,6 +32,22 @@ type ForumMessage = {
   profile?: { display_name: string | null; avatar_url: string | null };
 };
 
+// Render text with @mentions highlighted as pills.
+// Matches @Everyone or @Name (letters/numbers/_/.- up to 30 chars).
+function renderWithMentions(text: string, isOnPrimary: boolean) {
+  if (!text) return text;
+  const parts = text.split(/(@Everyone\b|@[\p{L}0-9_.-]{1,30})/gu);
+  return parts.map((p, i) => {
+    if (p && p.startsWith("@")) {
+      const cls = isOnPrimary
+        ? "bg-primary-foreground/25 text-primary-foreground rounded px-1 font-semibold"
+        : "bg-primary/15 text-primary rounded px-1 font-semibold";
+      return <span key={i} className={cls}>{p}</span>;
+    }
+    return <span key={i}>{p}</span>;
+  });
+}
+
 export default function Forums() {
   const { user } = useAuth();
   const { isAdmin: isAppAdmin } = useIsAdmin();
@@ -47,6 +63,7 @@ export default function Forums() {
   const [inviteCode, setInviteCode] = useState("");
   const [isUploadingImage, setIsUploadingImage] = useState(false);
   const [previewImage, setPreviewImage] = useState<string | null>(null);
+  const [previewMsgId, setPreviewMsgId] = useState<string | null>(null);
   const [editingMsg, setEditingMsg] = useState<ForumMessage | null>(null);
   const [replyingTo, setReplyingTo] = useState<ForumMessage | null>(null);
   const [pinMenuMsg, setPinMenuMsg] = useState<string | null>(null);
@@ -266,7 +283,8 @@ export default function Forums() {
       user_id: user.id,
       content,
       message_type: "text",
-    });
+      reply_to_message_id: replyingTo?.id ?? null,
+    } as any);
     if (error) {
       toast({ title: "Error", description: error.message, variant: "destructive" });
     } else {
@@ -408,7 +426,7 @@ export default function Forums() {
                             src={msg.image_url!}
                             alt="Shared"
                             className="rounded-2xl max-w-full max-h-60 object-cover hover:opacity-90 transition-opacity cursor-pointer"
-                            onClick={(e) => { e.stopPropagation(); setPreviewImage(msg.image_url!); }}
+                            onClick={(e) => { e.stopPropagation(); setPreviewImage(msg.image_url!); setPreviewMsgId(msg.id); }}
                           />
                           {/* Subtle floating green quick-reply button */}
                           <button
@@ -431,7 +449,7 @@ export default function Forums() {
                         <div className={`rounded-2xl px-4 py-2 text-sm ${isMe ? "bg-primary text-primary-foreground" : "bg-secondary"}`}>
                           {msg.content?.split("\n").map((line, li) => (
                             <span key={li} className={line.startsWith(">") ? "text-xs opacity-70 italic block mb-1" : ""}>
-                              {line}
+                              {renderWithMentions(line, isMe)}
                               {li < (msg.content?.split("\n").length ?? 0) - 1 && <br />}
                             </span>
                           ))}
@@ -536,10 +554,12 @@ export default function Forums() {
         {previewImage && (
           <ImageViewer
             imageUrl={previewImage}
-            onClose={() => setPreviewImage(null)}
+            onClose={() => { setPreviewImage(null); setPreviewMsgId(null); }}
             onReply={async (text) => {
               if (!user || !activeForum) return;
-              const replyMsg = (forumMessages as ForumMessage[] | undefined)?.find((m) => m.image_url === previewImage);
+              const replyMsg = (forumMessages as ForumMessage[] | undefined)?.find(
+                (m) => m.id === previewMsgId
+              );
               const prefix = replyMsg
                 ? `> ${replyMsg.profile?.display_name || "User"}: [image]\n\n`
                 : "";
@@ -548,7 +568,8 @@ export default function Forums() {
                 user_id: user.id,
                 content: prefix + text,
                 message_type: "text",
-              });
+                reply_to_message_id: replyMsg?.id ?? null,
+              } as any);
               queryClient.invalidateQueries({ queryKey: ["forum-messages", activeForum.id] });
             }}
           />
