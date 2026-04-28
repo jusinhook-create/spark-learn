@@ -505,6 +505,21 @@ export default function Forums() {
           <Button variant="ghost" size="icon" className="h-10 w-10 shrink-0" onClick={shareStreak}>
             <Flame className="h-4 w-4 text-destructive" />
           </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-10 w-10 shrink-0"
+            aria-label="Tag a member"
+            onClick={() => {
+              setMessage((m) => (m.endsWith("@") || m.length === 0 ? m + "@" : m + " @"));
+              setTimeout(() => {
+                const input = document.querySelector<HTMLInputElement>("[data-mention-input]");
+                input?.focus();
+              }, 30);
+            }}
+          >
+            <AtSign className="h-4 w-4" />
+          </Button>
           <MentionInput
             value={message}
             onChange={setMessage}
