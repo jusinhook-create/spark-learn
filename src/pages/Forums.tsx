@@ -32,6 +32,22 @@ type ForumMessage = {
   profile?: { display_name: string | null; avatar_url: string | null };
 };
 
+// Render text with @mentions highlighted as pills.
+// Matches @Everyone or @Name (letters/numbers/_/.- up to 30 chars).
+function renderWithMentions(text: string, isOnPrimary: boolean) {
+  if (!text) return text;
+  const parts = text.split(/(@Everyone\b|@[\p{L}0-9_.-]{1,30})/gu);
+  return parts.map((p, i) => {
+    if (p && p.startsWith("@")) {
+      const cls = isOnPrimary
+        ? "bg-primary-foreground/25 text-primary-foreground rounded px-1 font-semibold"
+        : "bg-primary/15 text-primary rounded px-1 font-semibold";
+      return <span key={i} className={cls}>{p}</span>;
+    }
+    return <span key={i}>{p}</span>;
+  });
+}
+
 export default function Forums() {
   const { user } = useAuth();
   const { isAdmin: isAppAdmin } = useIsAdmin();
