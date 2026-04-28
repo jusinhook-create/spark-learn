@@ -426,7 +426,7 @@ export default function Forums() {
                             src={msg.image_url!}
                             alt="Shared"
                             className="rounded-2xl max-w-full max-h-60 object-cover hover:opacity-90 transition-opacity cursor-pointer"
-                            onClick={(e) => { e.stopPropagation(); setPreviewImage(msg.image_url!); }}
+                            onClick={(e) => { e.stopPropagation(); setPreviewImage(msg.image_url!); setPreviewMsgId(msg.id); }}
                           />
                           {/* Subtle floating green quick-reply button */}
                           <button
