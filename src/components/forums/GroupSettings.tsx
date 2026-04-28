@@ -23,6 +23,23 @@ export function GroupSettings({ forum, onLeft }: GroupSettingsProps) {
   const isCreator = forum.created_by === user?.id;
   const [clearConfirm, setClearConfirm] = useState("");
 
+  // Realtime: refresh pending requests live for this group's admin
+  useEffect(() => {
+    if (!isCreator) return;
+    const ch = supabase
+      .channel(`jr-${forum.id}`)
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "join_requests", filter: `forum_id=eq.${forum.id}` },
+        () => {
+          queryClient.invalidateQueries({ queryKey: ["join-requests", forum.id] });
+          queryClient.invalidateQueries({ queryKey: ["pending-requests"] });
+        }
+      )
+      .subscribe();
+    return () => { supabase.removeChannel(ch); };
+  }, [forum.id, isCreator]);
+
   const { data: members } = useQuery({
     queryKey: ["group-members", forum.id],
     queryFn: async () => {
