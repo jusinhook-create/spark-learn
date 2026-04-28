@@ -175,6 +175,23 @@ export default function Forums() {
   });
 
   const joinGroup = async (forum: any) => {
+    // App Admins always get instant access to any group (no request, no notification)
+    if (isAppAdmin) {
+      const { data: existing } = await supabase
+        .from("group_members")
+        .select("id")
+        .eq("forum_id", forum.id)
+        .eq("user_id", user!.id)
+        .maybeSingle();
+      if (!existing) {
+        await supabase.from("group_members").insert({
+          forum_id: forum.id,
+          user_id: user!.id,
+        });
+      }
+      return;
+    }
+
     // Check if approval is required
     if ((forum as any).require_approval) {
       // Check if already a member
