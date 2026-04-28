@@ -219,14 +219,25 @@ export function GroupSettings({ forum, onLeft }: GroupSettingsProps) {
                 </AlertDialogDescription>
               </AlertDialogHeader>
               <div className="grid gap-2 py-2">
-                <Button
-                  variant="outline"
-                  className="w-full justify-start gap-2"
-                  onClick={() => clearChat.mutate()}
-                  disabled={clearChat.isPending}
-                >
-                  {clearChat.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : "🧹"} Clear Chat (your messages)
-                </Button>
+                <div className="rounded-lg border p-3 space-y-2">
+                  <p className="text-xs text-muted-foreground">
+                    Type <span className="font-mono font-semibold">CLEAR</span> to delete only your own messages in this group.
+                  </p>
+                  <Input
+                    value={clearConfirm}
+                    onChange={(e) => setClearConfirm(e.target.value)}
+                    placeholder="Type CLEAR"
+                    className="h-8"
+                  />
+                  <Button
+                    variant="outline"
+                    className="w-full justify-start gap-2"
+                    onClick={() => { clearChat.mutate(undefined, { onSettled: () => setClearConfirm("") }); }}
+                    disabled={clearChat.isPending || clearConfirm !== "CLEAR"}
+                  >
+                    {clearChat.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : "🧹"} Clear my messages
+                  </Button>
+                </div>
                 {!isCreator && (
                   <Button
                     variant="destructive"
